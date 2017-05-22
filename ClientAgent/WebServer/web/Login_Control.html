@@ -1,0 +1,292 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Login</title>
+<link rel="stylesheet" type="text/css" href="Login2.css" />
+<link rel="stylesheet" type="text/css" href="Control2.css" />
+<script src="http://ajax.aspnetcdn.com/ajax/jQuery/jquery-1.8.0.js">
+</script>
+<script>
+	
+    function init() { 
+        //output = document.getElementById("output"); 
+        testWebSocket(websocket); 
+    }  
+ 
+	function testWebSocket(websocket) { 
+		
+        websocket.onopen = function(evt) { 
+            onOpen(evt) 
+        }; 
+        websocket.onclose = function(evt) { 
+            onClose(evt) 
+        }; 
+        websocket.onmessage = function(evt) { 
+            onMessage(evt) 
+        }; 
+        websocket.onerror = function(evt) { 
+            onError(evt) 
+        }; 
+    }  
+ 
+    function onOpen(evt) { 
+        alert("CONNECTED"); 
+    }  
+ 
+    function onClose(evt) { 
+        alert("DISCONNECTED"); 
+        $("#login").hide();
+        $("#Control").hide();
+
+    }  
+ 
+    function onMessage(evt) { 
+        alert("RESPONSE:"+ evt.data); 
+		
+		//解析xml
+		
+        //websocket.close(); 
+    }  
+ 
+    function onError(evt) { 
+        alert("ERROR:"+ evt.data); 
+    }  
+ 
+    function doSend(message) { 
+        alert("SENT:" + message);  
+        websocket.send(message); 
+    }  
+	
+</script>
+	
+<script type="text/javascript">
+/*******************/
+/*数据结构*/
+	var Username;
+	var Password;
+	var temperature=27;/*温度*/
+	var Wind_Level=1;/*风速 0为低速  1为中速 2为高速*/
+	var Heater=1;/*温度模式 1为暖风  0为冷风*/
+	var if_start=0;/*是否开机 1为开机 0为关机*/
+	var message;//send to web
+	var ack=0;
+	//var wsUri ="ws://echo.websocket.org/";
+	var wsUri ="ws://10.128.193.18/ws";
+	var websocket = new WebSocket(wsUri); 
+	  
+	
+/*
+
+*********************登陆页面******************************
+
+*/
+	
+init();
+	
+function OutputUser(){
+             var input=document.getElementById("Username").value;
+			 document.getElementById("testDiv").style.display="block";
+			}
+function OutputPassword(){
+             var input=document.getElementById("Password").value;
+			 document.getElementById("testDiv").style.display="block";
+			}	
+/*点击登录按钮 函数模板*/		
+	
+
+	
+$(document).ready(function (){$("#LoginButton").click(function ()
+			{
+			   
+			   Username=$("#Username").val();
+			   Password=$("#Password").val();
+			   /*发送Username和Password*/
+	
+			   message="<Login><ID>"+"</ID>"+"<User>"+Username+"</User><Password>"+Password+"</Password><Room>323</Room></Login>"
+			   
+			   doSend(message);//发送socket
+	           
+			   if(ack=1/*成功登陆*/){
+				   $("#login").hide();
+				   $("#Control").show();
+				   }
+			   else/*不成功*/{
+				   $("#LoginFailed").fadeIn();
+			       $("#LoginFailed").fadeOut();
+				   }	   
+			})})
+			
+/*
+
+*************控制页面*************
+
+*/
+
+//按下温度增加按钮	
+$(document).ready(function(){$("#AddTemperature").click(function(){
+	if(if_start==1){
+	   if(Heater==1){//warm
+		   if(25<=temperature&&temperature<=27){
+			   temperature++;
+	           document.getElementById("ShowTemperature").innerHTML = temperature+"℃";
+		   }
+	   }
+	   else{//cold
+		   if(18<=temperature&&temperature<=24){
+			   temperature++;
+	           document.getElementById("ShowTemperature").innerHTML = temperature+"℃";
+	       }
+	   }
+	   
+	   message= "<Set_Temp><Temp>"+ temperature +"</Temp><Wind_Level>" + Wind_Level +"</Wind_Level></Set_Temp>";
+	   doSend(message);
+	}
+	
+
+})})
+
+//按下温度降低按钮	 
+$(document).ready(function(){$("#MinusTemperature").click(function(){	
+     if(if_start==1){
+	    if(Heater==1){
+		   if(26<=temperature&&temperature<=28){
+			   temperature--;
+	           document.getElementById("ShowTemperature").innerHTML = temperature+"℃";
+		   }
+	   }
+	   else{
+		   if(19<=temperature&&temperature<=25){
+			   temperature++;
+	           document.getElementById("ShowTemperature").innerHTML = temperature+"℃";
+	        }
+	   }
+	   
+	   message= "<Set_Temp><Temp>"+ temperature +"</Temp><Wind_Level>" + Wind_Level +"</Wind_Level></Set_Temp>";
+	   doSend(message);
+	 }
+    })})
+
+
+//按下风速增加按钮
+$(document).ready(function(){$("#AddSpeed").click(function(){
+	if(if_start==1){
+	   Heater=(Heater+1)%3;
+	   if(Heater==0)
+	        document.getElementById("ShowSpeed").innerHTML ='Slow';
+	   else if(Heater==1)
+	        document.getElementById("ShowSpeed").innerHTML ='Medium';
+	   else
+	        document.getElementById("ShowSpeed").innerHTML ='Fast'
+	   
+	   message= "<Set_Temp><Temp>"+ temperature +"</Temp><Wind_Level>" + Wind_Level +"</Wind_Level></Set_Temp>";
+	   doSend(message);
+	}
+    })})
+
+
+//按下风速降低按钮
+$(document).ready(function(){$("#MinusSpeed").click(function(){
+	if(if_start==1){
+       Heater=(Heater-1)%3;
+	   if(Heater==0)
+	        document.getElementById("ShowSpeed").innerHTML ='Slow';
+	   else if(Heater==1)
+	        document.getElementById("ShowSpeed").innerHTML ='Medium';
+	   else
+	        document.getElementById("ShowSpeed").innerHTML ='Fast'
+	
+	   message= "<Set_Temp><Temp>"+ temperature +"</Temp><Wind_Level>" + Wind_Level +"</Wind_Level></Set_Temp>";
+	   doSend(message);
+	}
+	
+    })})
+
+
+//按下开关按钮
+$(document).ready(function(){$("#Start").click(function(){
+	if_start=1;
+	$("#ShowTemperature").show();
+	$("#ShowSpeed").show();
+	$("#ShowMode").show();
+    })})
+</script>
+
+</head>
+
+<body>
+<!--登陆界面部分-->
+<div id="login">  
+  <h1>Login</h1>  
+        <form method="post">  
+            <input name="u" type="text" required="required" id="Username" placeholder="用户名"></input>  
+            
+            <input name="p" type="password" required="required" id="Password" placeholder="密码" ></input>  
+            <button   id="LoginButton" class="but" type="submit">登录</button>   
+  
+<div id="LoginFailed" style="color: #fff;   
+    text-shadow:0 0 10px;   
+    letter-spacing: 1px;   
+    text-align: center;   
+	font-size: 2em;   
+    margin: 0.67em 0; 
+    ">Login Failed!<script>$(document).ready($("#LoginFailed").hide());</script></div>
+ </div>    
+<!--遥控器控制部分-->
+<div id="Control">
+<h1 style="position:relative;top:-60px">Control</h1> 
+<form method="post">
+<div 
+style="position:absolute; top:120px; left:30px;"><!--温度控制块-->
+<div ><button class="input_" id="AddTemperature" type="botton"  style="font-size:20px;">+</button>
+</div><!--温度上升按钮-->
+<div class="temparature_show" id="Temperature" value="0" style="height:120px;width:50px;font-size:20px;"><div style="color:#E1E5EC;font-size:15px;position:relative; top:45px;left:5px">TEMP</div></div><!--温度-->
+<div ><button class="input_" id="MinusTemperature" type="botton" style="font-size: 20px; padding-top: 20px; bottom: 0px;">-</button>
+</div><!--温度下降按钮-->
+</div>
+
+<div  
+style="position:absolute; top:120px; left:210px;"><!--风速控制块-->
+<div ><button class="input_" id="MinusSpeed" type="botton"  style="font-size:20px;">+</button>
+</div><!--风速增加按钮-->
+<div class="temparature_show" id="Speed"  value="0" style="height:120px;width:50px;"><div style="color:#E1E5EC;font-size:15px;position:relative; top:45px;left:0px">SPEED</div></div><!--风速显示-->
+<div ><button class="input_" id="AddSpeed" type="botton" style="font-size: 20px; padding-top: 20px; bottom: 0px;float:right">-</button></div><!--风速下降按钮-->
+</div>
+
+<div style="position:absolute; top:200px ;left:115px"><!--温度显示模块-->
+<h1 id="ShowTemperature" ><script>document.write(temperature);$("#ShowTemperature").hide();
+</script>℃</h1>
+</div>
+
+
+<div style="position:absolute; top:245px ;left:115px; font-size:7px"><!--风速显示模块-->
+<h1 id="ShowSpeed" >
+<script>
+if(Wind_Level==0) 
+   document.write('Slow');
+else if(Wind_Level==1)
+   document.write('Medium');
+else
+   document.write('Fast');
+$("#ShowSpeed").hide();
+</script></h1>
+</div>
+
+
+<div id="Start"  
+style="height:50px;width:50px; position:absolute; left:110px;top:20px"><!--开关-->
+<button class="start_"  id="MinusTemperature" type="botton"  style="font-size:20px;">Start</button>
+</div>
+</form>
+
+<div id="ShowMode" style="position:absolute; top:350px;left:55px">
+   <div align="center"><h1 class="Heater">Mode:<script>document.write("warm");$("#ShowMode").hide();</script></h1></div><!--显示当前的模式-->
+</div>
+
+</div>
+<script>
+$("#Control").hide();
+</script>  
+
+</body>
+</html>
