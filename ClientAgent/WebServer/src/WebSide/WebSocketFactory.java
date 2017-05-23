@@ -6,6 +6,7 @@ import XML.XMLizableParser;
 import org.dom4j.DocumentException;
 
 import javax.websocket.*;
+import javax.websocket.server.PathParam;
 import javax.websocket.server.ServerEndpoint;
 import java.io.IOException;
 import java.nio.MappedByteBuffer;
@@ -17,10 +18,15 @@ public class WebSocketFactory {
 
     private static WebSocketEventHandler eventHandler = null;//用之前记得判空
     private static Hashtable<Integer, Session> sessionMapping;
+    private static Hashtable<String, Long> tokenTimesMapping;
     private int sessionID;
+    private String token;
+    private static final int TIMES = 5;
+    private static final int RESET_TIME = 60000;
 
     static {
         sessionMapping = new Hashtable<Integer, Session>();
+        tokenTimesMapping = new Hashtable<String, Long>();
     }
 
 
@@ -32,9 +38,10 @@ public class WebSocketFactory {
     public static void send(int num, byte[] message) {
         Session session = sessionMapping.get(num);
         try {
-            session.getBasicRemote().sendBinary(MappedByteBuffer.wrap(message));
+            session.getBasicRemote().sendText(new String(message));
         } catch (IOException e) {
             e.printStackTrace();
+            System.out.println("Error");
         }
     }
 
@@ -65,6 +72,7 @@ public class WebSocketFactory {
         do {
             sessionID = (int) (Math.random() * 65536);
         } while (sessionMapping.put(sessionID, session) != null);
+        this.token = token;
         eventHandler.onWebSocketStart(sessionID);
     }
 
@@ -83,7 +91,6 @@ public class WebSocketFactory {
     public void onError(Throwable t) throws Throwable {
 
     }
-
 }
 
 

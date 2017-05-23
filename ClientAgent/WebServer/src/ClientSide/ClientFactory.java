@@ -29,9 +29,12 @@ public class ClientFactory implements Runnable{
     private ClientFactory() {
         for (int i = 0; i < 1; i++) {
             try {
-                socket = new ServerSocket(9999);
+                //测试用
+                socket = new ServerSocket((int)(Math.random() * 65536));
+                System.out.println("绑定" + socket.getLocalPort() + "端口成功");
+                //socket = new ServerSocket(9999);
             } catch (IOException e) {
-                System.out.println("绑定9999端口失败，5秒后重试……");
+                System.out.println("绑定" + socket.getLocalPort() + "端口失败，5秒后重试……");
                 try {
                     Thread.sleep(5000);
                 } catch (InterruptedException e1) {

@@ -155,6 +155,15 @@ public class Controller implements Runnable{
                     webSideLoginMap.remove(webSide);
                     webSideRoomMap.remove(webSide);
                 }
+                if (payload.getSuccessful()) {
+                    ByteArrayOutputStream bao = new ByteArrayOutputStream();
+                    try {
+                        new ModeInfo(isHeatMode).write(bao);
+                    } catch (IOException | UnimplementedException e) {
+                        e.printStackTrace();
+                    }
+                    WebSocketFactory.send(webSide, bao.toByteArray());
+                }
             }
         });
 
@@ -181,6 +190,7 @@ public class Controller implements Runnable{
         //Web端登录信息
         XMLizableParser.getInstance().setWebLoginInfoHandler((payload, num, isWebSide) -> {
             if (isWebSide) {
+                WebSocketFactory.send(num, new byte[]{'a', 'b'});
                 if (webSideRoomMap.get(num) == null) {
                     try {
                         int clientID = inverseFind(clientRoomMap, payload.getRoom()).get(0);
