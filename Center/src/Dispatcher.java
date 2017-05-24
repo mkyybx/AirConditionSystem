@@ -19,6 +19,7 @@ public class Dispatcher implements Runnable{
             Server.produceLock.lock();
             try {
                 try {
+                    // wait for timer's or client's signal
                     Server.wakeCond.await();
                 }
                 catch (InterruptedException e){
@@ -60,16 +61,14 @@ public class Dispatcher implements Runnable{
                     WakeUpTable.setFareTimeout(false);
                 }
             }
-            catch (Exception e){
-                e.printStackTrace();
-            }
+
             finally {
                 Server.produceLock.unlock();
             }
         }
     }
 
-    private void broadcastFare() throws Exception{
+    private void broadcastFare() {
         for (Integer i: Server.clients.keySet()){
             double energy = Server.energyTable.get(i) + Server.logTable.get(i).energy;
             double fare = energy * 5;
@@ -81,7 +80,7 @@ public class Dispatcher implements Runnable{
         }
     }
 
-    private void schedule() throws Exception{
+    private void schedule() {
         // todo: ServerState should not be changed by dispatcher
         if (Server.queue.size() == 0) {                 // No one's waiting
             Config.setServerState(ServerState.Idle);    // server go idle
@@ -95,7 +94,9 @@ public class Dispatcher implements Runnable{
             selectedList = fullList;
         else{
             // acquire all client_no and sort them
-            int first = oldList == null ? 0 : fullList.indexOf(oldList.get(oldList.size()-1));
+            int first = 0;
+            if(oldList != null && fullList.indexOf(oldList.get(oldList.size()-1)) != -1)
+                first = fullList.indexOf(oldList.get(oldList.size()-1));
             for (int i = 0; i < 3; i++)         // todo : '3' need to be replaced with a variable
                 selectedList.add(fullList.get((first + i) % fullList.size()));
         }

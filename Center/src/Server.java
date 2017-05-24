@@ -24,6 +24,8 @@ public class Server implements Runnable
     public static CopyOnWriteArrayList<Integer> queue = null;
     public static ReentrantLock produceLock = new ReentrantLock();
     public static Condition wakeCond = produceLock.newCondition();
+    public static RoomInfoHandler roomInfoHandler = new RoomInfoHandler(Interactor.roomInfoDir);
+    public static LogHandler logHandler = new LogHandler(Interactor.logDir);
     private int port;
 
     public Server(int port){
@@ -54,6 +56,8 @@ public class Server implements Runnable
                 new Thread(new RequestHandler(client)).start();
             }
             server.close();
+            roomInfoHandler.close();
+            logHandler.close();
         }
         catch (Exception e){
             e.printStackTrace();

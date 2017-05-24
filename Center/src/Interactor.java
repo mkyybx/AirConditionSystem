@@ -4,15 +4,16 @@
  * the frequency slaves report their states and request for reports with this class.
  */
 
+import java.io.IOException;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Scanner;
+import java.util.*;
 
 public class Interactor{
     public static String roomInfoDir = "roomInfo.db";
+    public static String roomTable = "roomInfo";
     public static String logDir = "log.db";
+    public static String logTable = "log";
     private static final int MODE = 0;
     private static final int FREQ = 1;
     private static final int REPORT = 2;
@@ -58,7 +59,7 @@ public class Interactor{
                     int freq = scanner.nextInt();
                     if(freq == Config.getFrequency())
                         System.out.println("The freq is " + freq +" already. No need for change.");
-                    else{                                   // set new mode
+                    else{                                   // set new frequency
                         try {
                             // System.out.println("Before Interactor locked.");
                             Server.produceLock.lock();
@@ -131,17 +132,16 @@ public class Interactor{
         System.out.println("Input the password of client: ");
         info.Password = scanner.nextLine();
 
-        RoomInfoHandler handler = new RoomInfoHandler(roomInfoDir);
-        ArrayList<RoomInfo> res = handler.select(info.Client_No);
+
+        HashMap<String, Object> conditionSet = DatabaseHandler.map("Client_No", info.Client_No);
+        ArrayList<RoomInfo> res = Server.roomInfoHandler.select(roomTable, conditionSet);
         if(res.size() == 0){                    // the room is available
-            ArrayList<RoomInfo> tempList = new ArrayList<>();
-            tempList.add(info);
-            handler.insert(tempList);
+            ArrayList<RoomInfo> tempList = new ArrayList<>(Arrays.asList(info));
+            Server.roomInfoHandler.insert(tempList);
         }
         else{                                   // the room is occupied
             System.out.println("Assignment failed, the room is occupied. Please check out before check in.");
         }
-        handler.close();
     }
 
     private static void serverShutdown() throws SQLException {
@@ -171,16 +171,33 @@ public class Interactor{
 
     private static double roomCheckOut(int client_no) throws SQLException{
         // checkout
-        Server.clients.remove(client_no);
-        if(Server.queue.contains(client_no))
+        try {
+            Server.clients.get(client_no).close();
+        }
+        catch (IOException e) {
+            e.printStackTrace();
+        }
+        if(Server.queue.contains(client_no)){
+            Server.produceLock.lock();
             Server.queue.remove(client_no);
-        RequestHandler.newLog(Server.logTable.get(client_no), 0);
+            Server.clients.remove(client_no);
+            WakeUpTable.setQueueChanged(true);
+            Server.wakeCond.signal();
+            Server.produceLock.unlock();
+        }
+        if(Server.logTable.containsKey(client_no)){
+            RequestHandler.newLog(Server.logTable.get(client_no), 0);
+            Server.logTable.remove(client_no);
+        }
         double energy = Server.energyTable.get(client_no);
+        Server.energyTable.remove(client_no);
+        Server.tempTable.remove(client_no);
         Server.IPTable.remove(client_no);
 
-        LogHandler handler = new LogHandler(roomInfoDir);
-        handler.setCheckOut(client_no);
-        handler.close();
+        // set checkOut to true
+        HashMap<String, Object> conditionSet = DatabaseHandler.map("Client_No", client_no);
+        HashMap<String, Object> valueSet = DatabaseHandler.map("checkOut", true);
+        Server.roomInfoHandler.update(roomTable, conditionSet, valueSet);
 
         return energy;
     }
@@ -189,61 +206,29 @@ public class Interactor{
         System.out.println("What type of report you want to acquire?");
         System.out.println("0 for monthly report, 1 for weekly report, 2 for daily report.");
         Scanner scanner = new Scanner(System.in);
+
+        // acquire the list of clients that have logs in database
+        ArrayList<Object> roomList = Server.logHandler.selectColumnDistinct(logTable, "Client_No", new HashMap<String, Object>());
+
         MyDate now = new MyDate(LocalDateTime.now());
-        LogHandler handler = new LogHandler(logDir);
         HashMap<Integer, ArrayList<Log> > reports = new HashMap<>();
         HashMap<Integer, Double> fees = new HashMap<>();
-        switch (scanner.nextInt()){
-            case 0:
-                for (Integer i: Server.clients.keySet()){
-                    ArrayList<Log> report = new ArrayList<>();
-                    double fee = 0;
-                    ArrayList<Log> logs = handler.select(i);
-                    for(Log log: logs){
-                        if(log.startDate.month == now.month){
-                            report.add(log);
-                            fee += log.fee;
-                        }
-                    }
-                    reports.put(i, report);
-                    fees.put(i, fee);
-                }
-                break;
-
-            case 1:
-                for (Integer i: Server.clients.keySet()){
-                    ArrayList<Log> report = new ArrayList<>();
-                    ArrayList<Log> logs = handler.select(i);
-                    double fee = 0;
-                    for(Log log: logs){
-                        if(log.startDate.month == now.month && log.startDate.week == now.week){
-                            report.add(log);
-                            fee += log.fee;
-                        }
-                    }
-                    reports.put(i, report);
-                    fees.put(i, fee);
-                }
-                break;
-
-            case 2:
-                for (Integer i: Server.clients.keySet()){
-                    ArrayList<Log> report = new ArrayList<>();
-                    ArrayList<Log> logs = handler.select(i);
-                    double fee = 0;
-                    for(Log log: logs){
-                        if(log.startDate.month == now.month && log.startDate.week == now.week && log.startDate.day == now.day){
-                            report.add(log);
-                            fee += log.fee;
-                        }
-                    }
-                    reports.put(i, report);
-                    fees.put(i, fee);
-                }
-                break;
+        int reportType = scanner.nextInt();
+        for (Object object: roomList){
+            int client_no = (int) object;
+            HashMap<String, Object> conditionSet = DatabaseHandler.map("Client_No", client_no, "startMonth", now.month);
+            if(reportType > 0)
+                conditionSet.put("startWeek", now.week);
+            if(reportType > 1)
+                conditionSet.put("startDay", now.day);
+            ArrayList<Log> logs = Server.logHandler.select(logTable, conditionSet);
+            double fee = 0;
+            for(Log log: logs){
+                fee += log.fee;
+            }
+            reports.put(client_no, logs);
+            fees.put(client_no, fee);
         }
-        handler.close();
-
         // show report
     }
 }
