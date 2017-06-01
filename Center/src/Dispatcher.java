@@ -9,6 +9,7 @@ import org.dom4j.DocumentHelper;
 import org.dom4j.Element;
 
 import java.util.*;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class Dispatcher implements Runnable{
     private ArrayList<Integer> oldList = null;
@@ -16,15 +17,8 @@ public class Dispatcher implements Runnable{
     @Override
     public void run() {
         while(true){
-            Server.produceLock.lock();
             try {
-                try {
-                    // wait for timer's or client's signal
-                    Server.wakeCond.await();
-                }
-                catch (InterruptedException e){
-                    e.printStackTrace();
-                }
+                Server.wakeLock.lock();
                 if (WakeUpTable.isModeChanged()){
                     Document document = DocumentHelper.createDocument();
                     Element root = document.addElement(RequestHandler.MODE);
@@ -52,23 +46,21 @@ public class Dispatcher implements Runnable{
                 }
                 if (WakeUpTable.isFareTimeout()){
                     broadcastFare();
-                    if(oldList != null){
-                        for(Integer i: oldList){        // update duration for selected clients
-                            Server.logTable.get(i).netDuration++;
-                            Server.logTable.get(i).updateEnergyAndFare();
-                        }
+                    for(Integer i: oldList){        // update duration for selected clients
+                        Server.logTable.get(i).netDuration++;
+                        Server.logTable.get(i).updateEnergyAndFare();
                     }
                     WakeUpTable.setFareTimeout(false);
                 }
-            }
-
-            finally {
                 Server.produceLock.unlock();
+            }
+            catch (Exception e){
+                e.printStackTrace();
             }
         }
     }
 
-    private void broadcastFare() {
+    private void broadcastFare() throws Exception{
         for (Integer i: Server.clients.keySet()){
             double energy = Server.energyTable.get(i) + Server.logTable.get(i).energy;
             double fare = energy * 5;
@@ -80,7 +72,7 @@ public class Dispatcher implements Runnable{
         }
     }
 
-    private void schedule() {
+    private void schedule() throws Exception{
         // todo: ServerState should not be changed by dispatcher
         if (Server.queue.size() == 0) {                 // No one's waiting
             Config.setServerState(ServerState.Idle);    // server go idle
@@ -94,9 +86,7 @@ public class Dispatcher implements Runnable{
             selectedList = fullList;
         else{
             // acquire all client_no and sort them
-            int first = 0;
-            if(oldList != null && fullList.indexOf(oldList.get(oldList.size()-1)) != -1)
-                first = fullList.indexOf(oldList.get(oldList.size()-1));
+            int first = oldList == null ? 0 : fullList.indexOf(oldList.get(oldList.size()-1));
             for (int i = 0; i < 3; i++)         // todo : '3' need to be replaced with a variable
                 selectedList.add(fullList.get((first + i) % fullList.size()));
         }

@@ -9,7 +9,6 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 
 enum ServerState {On, Off, Idle}
@@ -23,9 +22,7 @@ public class Server implements Runnable
     public static ConcurrentHashMap<Integer, Double> energyTable = null;
     public static CopyOnWriteArrayList<Integer> queue = null;
     public static ReentrantLock produceLock = new ReentrantLock();
-    public static Condition wakeCond = produceLock.newCondition();
-    public static RoomInfoHandler roomInfoHandler = new RoomInfoHandler(Interactor.roomInfoDir);
-    public static LogHandler logHandler = new LogHandler(Interactor.logDir);
+    public static ReentrantLock wakeLock = new ReentrantLock();
     private int port;
 
     public Server(int port){
@@ -56,8 +53,6 @@ public class Server implements Runnable
                 new Thread(new RequestHandler(client)).start();
             }
             server.close();
-            roomInfoHandler.close();
-            logHandler.close();
         }
         catch (Exception e){
             e.printStackTrace();

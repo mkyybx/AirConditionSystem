@@ -4,7 +4,7 @@
 public class Config {
     private static int mode = 0;
     private static int frequency = 5;
-    private static ServerState serverState = ServerState.Idle;
+    private static ServerState serverState = ServerState.Off;
 
     public synchronized static int getMode(){
         return mode;

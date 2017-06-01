@@ -1,3 +1,7 @@
+import java.io.IOException;
+import java.io.PrintStream;
+import java.util.concurrent.locks.ReentrantLock;
+
 /**
  * Created by Layne on 2017/5/21.
  */
@@ -6,32 +10,21 @@ public class MyTimer implements Runnable{
     @Override
     public void run() {
         int count = 0;
-        boolean flag = true;
-        while (flag){
-            try {
-                Thread.sleep(10*1000);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-            System.out.println("Timer expired...");
-            Server.produceLock.lock();             // wait for dispatcher to finish current job
+        while (true){
             try {                           // ticking every one minute
-                if (Config.getServerState() != ServerState.Off){
-                    count++;
-                    WakeUpTable.setFareTimeout(true);
-                    if(count == Config.getFrequency()){
-                        WakeUpTable.setSchedulingTimeout(true);
-                        count = 0;
-                    }
-                }
-                else{
-                    System.out.println("Server shutdown");
-                    flag = false;
+                Server.produceLock.lock();             // wait for dispatcher to finish current job
+
+                if (Config.getServerState() == ServerState.Off)
+                    break;
+                count++;
+                WakeUpTable.setFareTimeout(true);
+                if(count == Config.getFrequency()){
+                    WakeUpTable.setSchedulingTimeout(true);
+                    count = 0;
                 }
             }
             finally{
-                Server.wakeCond.signal();
-                Server.produceLock.unlock();
+                Server.wakeLock.unlock();
             }
         }
     }
