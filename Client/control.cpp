@@ -81,7 +81,7 @@ void* Control::th_control_masterServer(void * object)
 
 void* Control::control_masterServer()//主机服务器 
 {
-	listen(masterClient.m_sock,5);
+	//listen(masterClient.m_sock,5);
 
 	while(1)
 	{
@@ -153,7 +153,8 @@ void* Control::th_control_agentServer(void * object)
 
 void* Control::control_agentServer()//从机服务器 
 {
-	listen(agentClient.m_sock,5);
+	//listen(agentClient.m_sock,5);
+	printf("msock=%x\n", agentClient.m_sock);
 
 	while(1)
 	{
@@ -247,8 +248,9 @@ void Control::control_agentClient(string name,int suc)//从机客户端
 
 int Control::control_init()
 {	
-	int iRlt2 = masterClient.Connect(1111,"127.0.0.1");//建立主机和agent的服务器 
-	int iRlt1 = agentClient.Connect(0x0f27,"10.28.197.143");//建立主机和agent的服务器 
+	//int iRlt2 = masterClient.Connect("1111","127.0.0.1");//建立主机和agent的服务器 
+	int iRlt1 = agentClient.Connect("9999","10.28.197.143");//建立主机和agent的服务器 
+	printf("msock=%x\n", agentClient.m_sock);
 	//int iRlt1=0;
 	 //iRlt2=0;
 	
@@ -258,26 +260,21 @@ int Control::control_init()
 	//{
 		printf("init ok...\n"); 
 		//int a = pthread_create(&tids[0], NULL,th_control_masterServer, NULL);//创建server线程 
-		//Control* tempControl0 = new Control();
-		//CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)th_control_masterServer, tempControl0, 0, tids);
+		//CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)th_control_masterServer, this, 0, tids);
 		printf("0...\n");
-		Control* tempControl1 = new Control();
-		CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)th_control_agentServer, tempControl1, 0, tids + 1);
+		CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)th_control_agentServer, this, 0, tids + 1);
 		//pthread_create(&tids[1], NULL, th_control_agentServer, NULL);
 		printf("1...\n");
-		Control* tempControl2 = new Control();
-		//CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)th_control_change_temp, tempControl2, 0, tids + 4);
+		//CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)th_control_change_temp, this, 0, tids + 4);
 		//pthread_create(&tids[4], NULL, th_control_change_temp, NULL);
 		printf("4...\n");
 		
 		control_agentClient("Reg",1);
-				Control* tempControl3 = new Control();
-				//CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)th_control_heart_temp_submit, tempControl3, 0, tids + 2);
+				//CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)th_control_heart_temp_submit, this, 0, tids + 2);
 				//pthread_create(&tids[2], NULL,th_control_heart_temp_submit, NULL);
 				printf("2...\n");
 				{
-					Control* tempControl4 = new Control();
-					//CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)th_control_first_login_to_master, tempControl4, 0, tids + 3);
+					//CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)th_control_first_login_to_master, this, 0, tids + 3);
 					//pthread_create(&tids[3], NULL, th_control_first_login_to_master, NULL);
 					printf("3...\n");
 				    //pthread_exit(NULL);

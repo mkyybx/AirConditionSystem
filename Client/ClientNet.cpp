@@ -1,6 +1,112 @@
 #include "ClientNet.h"
 
-int CClientNet::Connect( int port,const char* address )
+
+int CClientNet::Connect(const char* port, const char* address) {
+	WSADATA wsaData;
+	SOCKET ConnectSocket = INVALID_SOCKET;
+	struct addrinfo *result = NULL,
+		*ptr = NULL,
+		hints;
+	char recvbuf[1024];
+	int recvbuflen;
+	int iResult;
+
+	// Initialize Winsock
+	iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
+	if (iResult != 0) {
+		printf("WSAStartup failed with error: %d\n", iResult);
+		return 1;
+	}
+
+	ZeroMemory(&hints, sizeof(hints));
+	hints.ai_family = AF_UNSPEC;
+	hints.ai_socktype = SOCK_STREAM;
+	hints.ai_protocol = IPPROTO_TCP;
+
+	// Resolve the server address and port
+	iResult = getaddrinfo(address, port, &hints, &result);
+	if (iResult != 0) {
+		printf("getaddrinfo failed with error: %d\n", iResult);
+		WSACleanup();
+		return 1;
+	}
+
+	// Attempt to connect to an address until one succeeds
+	for (ptr = result; ptr != NULL; ptr = ptr->ai_next) {
+
+		// Create a SOCKET for connecting to server
+		ConnectSocket = socket(ptr->ai_family, ptr->ai_socktype,
+			ptr->ai_protocol);
+		if (ConnectSocket == INVALID_SOCKET) {
+			printf("socket failed with error: %ld\n", WSAGetLastError());
+			WSACleanup();
+			return 1;
+		}
+
+		// Connect to server.
+		iResult = connect(ConnectSocket, ptr->ai_addr, (int)ptr->ai_addrlen);
+		if (iResult == SOCKET_ERROR) {
+			closesocket(ConnectSocket);
+			ConnectSocket = INVALID_SOCKET;
+			continue;
+		}
+		break;
+	}
+
+	freeaddrinfo(result);
+
+	if (ConnectSocket == INVALID_SOCKET) {
+		printf("Unable to connect to server!\n");
+		WSACleanup();
+		return 1;
+	}
+	m_sock = ConnectSocket;
+	
+}
+
+int CClientNet::SendMsg(string m) {
+	int len = m.size();
+	int a = htonl(len);
+	char* length = (char*)(&a);
+	send(m_sock, length, sizeof(int), 0);
+	int state = send(m_sock, m.c_str(), len, 0);
+	return state;
+}
+
+string CClientNet::RecMsg() {
+	char buf[1024];
+	int length = 0;
+	for (int i = 0; i < sizeof(int); ) {
+		length = recv(m_sock, buf + i, sizeof(int), 0);
+		if (length <= 0)
+			break;
+		else i += length;
+	}
+	printf("@RecMsg,msock=%x\n", m_sock);
+	if (length <= 0) {
+		//return length;
+		;
+	}
+	else {
+		int num = *(int*)buf;
+		num = htonl(num);
+		for (int i = 0; i < num;) {
+			length = recv(m_sock, buf + i, sizeof(int), 0);
+			if (length <= 0)
+				break;
+			else i += length;
+		}
+		if (length <= 0) {
+			//return length;
+			;
+		}
+		buf[num] = 0;
+		printf("%s\n", buf);
+		return buf;
+	}
+}
+
+/*int CClientNet::Connect( int port,const char* address )
 {
 	int rlt = 0;
 
@@ -47,8 +153,8 @@ int CClientNet::Connect( int port,const char* address )
 	}
 
 	return rlt;
-}
-
+}*/
+/*
 int CClientNet::SendMsg(string m)
 {
 	const char *msg = m.c_str();
@@ -62,15 +168,16 @@ int CClientNet::SendMsg(string m)
 		temp[i] = temp[sizeof(int) - 1 - i];
 		temp[sizeof(int) - 1 - i] = t;
 	}*/
+/*
 	int a = htonl(len);
-    iErrMsg = send(m_sock,(char*)(&a),sizeof(int),0);
+    iErrMsg = send(m_sock,(char*)(&a),sizeof(int),0);*/
     /*for (int i = 0; i < sizeof(int) / 2; i++) {
 		char* temp = (char*)&len;
 		char t;
 		t = temp[i];
 		temp[i] = temp[sizeof(int) - 1 - i];
 		temp[sizeof(int) - 1 - i] = t;
-	}*/
+		}*//*
 	iErrMsg = send(m_sock,msg,len,0);//发送消息，指定sock发送消息
 	printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!%d\n",len);
 	//printf
@@ -83,11 +190,12 @@ int CClientNet::SendMsg(string m)
 	}
 
 	return rlt;
-}
+}*/
 
 void CClientNet::Close()
 {
-	closesocket(m_sock);
+	//closesocket(m_sock);
+	;
 }
 
 /*int CClientNet::Init( const char* address,int port )
@@ -142,7 +250,7 @@ void CClientNet::Close()
 
 	return rlt;
 }*/
-
+/*
 string CClientNet::RecMsg()
 {
 	char recData[1024];  
@@ -195,12 +303,12 @@ string CClientNet::RecMsg()
 		closesocket(newSocket);//关闭对应Accept的socket
 		return s;
 	}	*/
-}
-
+/*}*/
+/*
 void CClientNet::Run()
 {
 	//公开连接
-	listen(m_sock,5);
+	//listen(m_sock,5);
 
 	
 
@@ -211,4 +319,4 @@ void CClientNet::Run()
 
 	//关闭自身的Socket
 	closesocket(m_sock);
-}
+}*/

@@ -1,6 +1,7 @@
+
 #ifndef FUNCTIONS_H_INCLUDED
 #define FUNCTIONS_H_INCLUDED
-
+#define WIN32_LEAN_AND_MEAN
 #include <iostream>
 #include <fstream> 
 #include <iomanip>
@@ -11,7 +12,9 @@
 #include <ctime>
 #include <windows.h>
 #include <pthread.h>
-#include <winsock.h>
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#pragma comment(lib, "Ws2_32.lib")
 
 using namespace std;
 
