@@ -13,7 +13,7 @@ public class DatabaseHandler {
     protected DatabaseHandler(String name){
         conn = null;
         name = "jdbc:sqlite:" + System.getProperty("user.dir") + "\\" + name;
-        System.out.println(name);
+        // System.out.println(name);
         try{
             Class.forName("org.sqlite.JDBC");
             conn = DriverManager.getConnection(name);
@@ -144,8 +144,8 @@ class RoomInfoHandler extends DatabaseHandler{          // specific database han
         super(name);
     }
 
-    public synchronized void insert(ArrayList<RoomInfo> infos) throws SQLException {
-        stmt = conn.prepareStatement("INSERT INTO roomInfo VALUES(?, ?, ?)");
+    public synchronized void insert(String tableName, ArrayList<RoomInfo> infos) throws SQLException {
+        stmt = conn.prepareStatement("INSERT INTO " + tableName + " VALUES(?, ?, ?)");
         for(RoomInfo info: infos){
             stmt.setInt(1, info.Client_No);
             stmt.setString(2, info.Name);
@@ -189,6 +189,11 @@ class MyDate{
     public int week;
     public int day;
 
+    @Override
+    public String toString() {
+        return month + "月-" + week + "周-" + day + "日";
+    }
+
     public MyDate(LocalDateTime now){
         month = now.getMonthValue();
         week = now.get(IsoFields.WEEK_OF_WEEK_BASED_YEAR);
@@ -229,8 +234,8 @@ class LogHandler extends DatabaseHandler{
         super(name);
     }
 
-    public synchronized void insert(ArrayList<Log> logs) throws SQLException {
-        stmt = conn.prepareStatement("INSERT INTO log VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+    public synchronized void insert(String tableName, ArrayList<Log> logs) throws SQLException {
+        stmt = conn.prepareStatement("INSERT INTO " + tableName + " VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
         for(Log log: logs){
             stmt.setInt(1, log.Client_No);
             stmt.setString(2, log.Name);

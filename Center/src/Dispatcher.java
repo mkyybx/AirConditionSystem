@@ -9,17 +9,29 @@ import org.dom4j.DocumentHelper;
 import org.dom4j.Element;
 
 import java.util.*;
-import java.util.concurrent.locks.ReentrantLock;
 
 public class Dispatcher implements Runnable{
     private ArrayList<Integer> oldList = null;
+    private MainForm mainForm;
+
+    public Dispatcher(MainForm mainForm){
+        this.mainForm = mainForm;
+    }
 
     @Override
     public void run() {
         while(true){
+            Server.produceLock.lock();
             try {
-                Server.wakeLock.lock();
+                try {
+                    // wait for timer's or client's signal
+                    Server.wakeCond.await();
+                }
+                catch (InterruptedException e){
+                    e.printStackTrace();
+                }
                 if (WakeUpTable.isModeChanged()){
+                    System.out.println("Mode changed");
                     Document document = DocumentHelper.createDocument();
                     Element root = document.addElement(RequestHandler.MODE);
                     root.addElement("Heater").setText(Integer.toString(Config.getMode()));
@@ -29,6 +41,7 @@ public class Dispatcher implements Runnable{
                     WakeUpTable.setModeChanged(false);
                 }
                 if (WakeUpTable.isFrequencyChanged()){
+                    System.out.println("Frequency changed");
                     Document document = DocumentHelper.createDocument();
                     Element root = document.addElement(RequestHandler.FREQ);
                     root.addElement("Temp_Submit_Freq").setText(Integer.toString(Config.getFrequency()));
@@ -38,29 +51,34 @@ public class Dispatcher implements Runnable{
                     WakeUpTable.setFrequencyChanged(false);
                 }
                 if(WakeUpTable.isQueueChanged() || WakeUpTable.isSchedulingTimeout()){
+                    System.out.println("Rescheduling");
                     schedule();
                     if(WakeUpTable.isQueueChanged())
                         WakeUpTable.setQueueChanged(false);
                     if (WakeUpTable.isSchedulingTimeout())
                         WakeUpTable.setSchedulingTimeout(false);
+                    mainForm.setState(Config.getServerState());
                 }
                 if (WakeUpTable.isFareTimeout()){
+                    System.out.println("Sending fare");
                     broadcastFare();
-                    for(Integer i: oldList){        // update duration for selected clients
-                        Server.logTable.get(i).netDuration++;
-                        Server.logTable.get(i).updateEnergyAndFare();
+                    if(oldList != null){
+                        for(Integer i: oldList){        // update duration for selected clients
+                            Server.logTable.get(i).netDuration++;
+                            Server.logTable.get(i).updateEnergyAndFare();
+                        }
                     }
                     WakeUpTable.setFareTimeout(false);
                 }
-                Server.produceLock.unlock();
             }
-            catch (Exception e){
-                e.printStackTrace();
+
+            finally {
+                Server.produceLock.unlock();
             }
         }
     }
 
-    private void broadcastFare() throws Exception{
+    private void broadcastFare() {
         for (Integer i: Server.clients.keySet()){
             double energy = Server.energyTable.get(i) + Server.logTable.get(i).energy;
             double fare = energy * 5;
@@ -72,7 +90,7 @@ public class Dispatcher implements Runnable{
         }
     }
 
-    private void schedule() throws Exception{
+    private void schedule() {
         // todo: ServerState should not be changed by dispatcher
         if (Server.queue.size() == 0) {                 // No one's waiting
             Config.setServerState(ServerState.Idle);    // server go idle
@@ -86,7 +104,9 @@ public class Dispatcher implements Runnable{
             selectedList = fullList;
         else{
             // acquire all client_no and sort them
-            int first = oldList == null ? 0 : fullList.indexOf(oldList.get(oldList.size()-1));
+            int first = 0;
+            if(oldList != null && fullList.indexOf(oldList.get(oldList.size()-1)) != -1)
+                first = fullList.indexOf(oldList.get(oldList.size()-1));
             for (int i = 0; i < 3; i++)         // todo : '3' need to be replaced with a variable
                 selectedList.add(fullList.get((first + i) % fullList.size()));
         }
