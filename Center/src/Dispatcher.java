@@ -20,6 +20,7 @@ public class Dispatcher implements Runnable{
 
     @Override
     public void run() {
+        int previousQueueLength = 0;
         while(true){
             Server.produceLock.lock();
             try {
@@ -57,7 +58,8 @@ public class Dispatcher implements Runnable{
                         WakeUpTable.setQueueChanged(false);
                     if (WakeUpTable.isSchedulingTimeout())
                         WakeUpTable.setSchedulingTimeout(false);
-                    mainForm.setState(Config.getServerState());
+                    if (!(previousQueueLength > 0 && Server.queue.size() > 0 || previousQueueLength == Server.queue.size()))
+                        mainForm.setState(Config.getServerState());
                 }
                 if (WakeUpTable.isFareTimeout()){
                     System.out.println("Sending fare");
@@ -75,6 +77,7 @@ public class Dispatcher implements Runnable{
             finally {
                 Server.produceLock.unlock();
             }
+            previousQueueLength = Server.queue.size();
         }
     }
 
