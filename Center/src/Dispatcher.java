@@ -4,10 +4,9 @@
  * Whenever a connection is established/dropped, scheduling is invoked.
  * whenever mode/frequency is changed, inform the slaves the changes.
  */
-import org.dom4j.Document;
-import org.dom4j.DocumentHelper;
-import org.dom4j.Element;
 
+import java.io.DataOutputStream;
+import java.io.IOException;
 import java.util.*;
 
 public class Dispatcher implements Runnable{
@@ -22,31 +21,22 @@ public class Dispatcher implements Runnable{
     public void run() {
         int previousQueueLength = 0;
         while(true){
+            if(Thread.currentThread().isInterrupted())
+                return;
             Server.produceLock.lock();
             try {
-                try {
-                    // wait for timer's or client's signal
-                    Server.wakeCond.await();
-                }
-                catch (InterruptedException e){
-                    e.printStackTrace();
-                }
+                // wait for timer's or client's signal
+                Server.wakeCond.await();
                 if (WakeUpTable.isModeChanged()){
                     System.out.println("Mode changed");
-                    Document document = DocumentHelper.createDocument();
-                    Element root = document.addElement(RequestHandler.MODE);
-                    root.addElement("Heater").setText(Integer.toString(Config.getMode()));
-                    String Msg = document.asXML().split("\n")[1];
+                    String Msg = XMLPacker.packModeInfo();
                     for (Integer i: Server.clients.keySet())
                         sendMsg(i, Msg);
                     WakeUpTable.setModeChanged(false);
                 }
                 if (WakeUpTable.isFrequencyChanged()){
                     System.out.println("Frequency changed");
-                    Document document = DocumentHelper.createDocument();
-                    Element root = document.addElement(RequestHandler.FREQ);
-                    root.addElement("Temp_Submit_Freq").setText(Integer.toString(Config.getFrequency()));
-                    String Msg = document.asXML().split("\n")[1];
+                    String Msg = XMLPacker.packFreqInfo();
                     for (Integer i: Server.clients.keySet())
                         sendMsg(i, Msg);
                     WakeUpTable.setFrequencyChanged(false);
@@ -73,7 +63,9 @@ public class Dispatcher implements Runnable{
                     WakeUpTable.setFareTimeout(false);
                 }
             }
-
+            catch (InterruptedException e){
+                System.out.println("Dispatcher is shut down");
+            }
             finally {
                 Server.produceLock.unlock();
             }
@@ -85,16 +77,12 @@ public class Dispatcher implements Runnable{
         for (Integer i: Server.clients.keySet()){
             double energy = Server.energyTable.get(i) + Server.logTable.get(i).energy;
             double fare = energy * 5;
-            Document document = DocumentHelper.createDocument();
-            Element root = document.addElement(RequestHandler.FARE);
-            root.addElement("Fare").setText(Double.toString(fare));
-            root.addElement("Energy").setText(Double.toString(energy));
-            sendMsg(i, document.asXML().split("\n")[1]);
+            String Msg = XMLPacker.packFareInfo(fare, energy);
+            sendMsg(i, Msg);
         }
     }
 
     private void schedule() {
-        // todo: ServerState should not be changed by dispatcher
         if (Server.queue.size() == 0) {                 // No one's waiting
             Config.setServerState(ServerState.Idle);    // server go idle
             return;
@@ -115,22 +103,13 @@ public class Dispatcher implements Runnable{
         }
 
         // keep an old list and current list
-        Document doc1 = DocumentHelper.createDocument();
-        Element root1 = doc1.addElement(RequestHandler.WIND);
-        root1.addElement("Start_Blowing").setText(Integer.toString(1));
-        // Level should be ignored in this case
-        root1.addElement("Level").setText(Integer.toString(1));
-        String Msg = doc1.asXML().split("\n")[1];
+        String Msg = XMLPacker.packQueueInfo(true, 1);
 
         for (Integer i: selectedList)       // inform slaves to start blowing
             sendMsg(i, Msg);
 
         if (oldList != null){               // inform them to stop
-            Document doc2 = DocumentHelper.createDocument();
-            Element root2 = doc1.addElement(RequestHandler.WIND);
-            root2.addElement("Start_Blowing").setText(Integer.toString(0));
-            root2.addElement("Level").setText(Integer.toString(1));
-            Msg = doc2.asXML().split("\n")[1];
+            Msg = XMLPacker.packQueueInfo(false, 1);
 
             for (Integer i: oldList){
                 if (selectedList.contains(i))
@@ -143,7 +122,12 @@ public class Dispatcher implements Runnable{
     }
 
     private void sendMsg(Integer client_no, String Msg) {
-        if(!RequestHandler.sendMsg(Server.clients.get(client_no), Msg))
-            Server.clients.remove(client_no);
+        try{
+            if(!RequestHandler.sendMsg(new DataOutputStream(Server.clients.get(client_no).getOutputStream()), Msg))
+                Server.clients.remove(client_no);
+        }
+        catch (IOException e){
+            e.printStackTrace();
+        }
     }
 }

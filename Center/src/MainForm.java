@@ -52,6 +52,8 @@ public class MainForm implements ActionListener, ItemListener {
     private JLabel labelAssignPass;
 
     private HashMap<Integer, ArrayList<Log>> reports;
+    private Thread serverThread;
+    private int port = 9999;
 
     public MainForm() {
         btnState.addActionListener(this);
@@ -63,6 +65,8 @@ public class MainForm implements ActionListener, ItemListener {
         cbShowReport.addItemListener(this);
         tfCurrentState.setText("待机");
         tfCurrentMode.setText(Config.getMode() == 0 ? "制冷" : "制暖");
+
+        serverStart();
     }
 
     private void createUIComponents() {
@@ -84,9 +88,7 @@ public class MainForm implements ActionListener, ItemListener {
     }
 
     public static void main(String[] args) throws ClassNotFoundException, UnsupportedLookAndFeelException, InstantiationException, IllegalAccessException {
-        int port = 9999;
         MainForm mainForm = new MainForm();
-        new Thread(new Server(port, mainForm)).start();
         UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
         JFrame frame = new JFrame("MainForm");
         frame.setContentPane(mainForm.mainPanel);
@@ -109,7 +111,15 @@ public class MainForm implements ActionListener, ItemListener {
         for (Integer i : Server.clients.keySet()){
             roomCheckOut(i);
         }
-        JOptionPane.showMessageDialog(null, "中央空调已关机");
+        serverThread.interrupt();
+        serverThread = null;
+    }
+
+    private void serverStart() {
+        tfCurrentState.setText("待机");
+        Config.setServerState(ServerState.On);
+        serverThread = new Thread(new Server(port, this));
+        serverThread.start();
     }
 
     private void clientCheckout() throws SQLException{
@@ -217,7 +227,11 @@ public class MainForm implements ActionListener, ItemListener {
         JButton source = (JButton) e.getSource();
         try {
             if(source == btnState){
-                serverShutdown();
+                if(Config.getServerState() == ServerState.Off)
+                    serverStart();
+                else
+                    serverShutdown();
+                JOptionPane.showMessageDialog(null, "主机状态变为"+tfCurrentState.getText());
             }
             else if(source == btnMode){
                 setMode();
@@ -244,7 +258,7 @@ public class MainForm implements ActionListener, ItemListener {
     public void itemStateChanged(ItemEvent e) {
         // only cbShowReport have a listener
         if(e.getStateChange() == ItemEvent.SELECTED){
-            int client_no = Integer.parseInt((String) e.getItem());
+            int client_no = (int) e.getItem();
             ArrayList<Log> logs = reports.get(client_no);
             double fee = updateTable(logs);
             tfSwitch.setText(Integer.toString(logs.size()));

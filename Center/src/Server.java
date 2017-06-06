@@ -4,9 +4,9 @@
  * When a connection is accepted, server add the client socket to queue and notify Dispatcher for rescheduling.
  */
 
-import java.net.InetAddress;
-import java.net.ServerSocket;
-import java.net.Socket;
+import java.io.IOException;
+import java.net.*;
+import java.util.ArrayList;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.locks.Condition;
@@ -28,45 +28,70 @@ public class Server implements Runnable
     public static LogHandler logHandler;
     private int port;
     private MainForm mainForm;
+    private ArrayList<Thread> childThreads;
 
     public Server(int port, MainForm mainForm){
         this.port = port;
         this.mainForm = mainForm;
+        childThreads = new ArrayList<>();
+        clients = new ConcurrentHashMap<>();
+        IPTable = new ConcurrentHashMap<>();
+        tempTable = new ConcurrentHashMap<>();
+        logTable = new ConcurrentHashMap<>();
+        queue = new CopyOnWriteArrayList<>();
+        energyTable = new ConcurrentHashMap<>();
+        produceLock = new ReentrantLock();
+        wakeCond = produceLock.newCondition();
+        roomInfoHandler = new RoomInfoHandler(Config.roomInfoDir);
+        logHandler = new LogHandler(Config.logDir);
     }
 
 
     @Override
     public void run() {
-        try{
-            ServerSocket server = new ServerSocket(port);
-            Socket client;
-            clients = new ConcurrentHashMap<>();
-            IPTable = new ConcurrentHashMap<>();
-            tempTable = new ConcurrentHashMap<>();
-            logTable = new ConcurrentHashMap<>();
-            queue = new CopyOnWriteArrayList<>();
-            energyTable = new ConcurrentHashMap<>();
-            produceLock = new ReentrantLock();
-            wakeCond = produceLock.newCondition();
-            roomInfoHandler = new RoomInfoHandler(Config.roomInfoDir);
-            logHandler = new LogHandler(Config.logDir);
+
+        try {
             // start dispatcher thread for scheduling
-            new Thread(new Dispatcher(mainForm)).start();
-            new Thread(new MyTimer()).start();
+            Thread thDispatcher = new Thread(new Dispatcher(mainForm));
+            Thread thTimer = new Thread(new MyTimer());
+            childThreads.add(thDispatcher);
+            childThreads.add(thTimer);
+            thDispatcher.start();
+            thTimer.start();
+            ServerSocket server = new ServerSocket();
+            server.setReuseAddress(true);
+            server.bind(new InetSocketAddress(port));
+            server.setSoTimeout(1000);
+            Socket client;
             while(true){
-                // wait for connection
-                client = server.accept();
-                if(Config.getServerState() == ServerState.Off)
-                    break;
+                try {
+                    client = server.accept();
+                }
+                catch (SocketTimeoutException e){
+                    if (Thread.currentThread().isInterrupted()){
+                        for (Thread th : childThreads)
+                            th.interrupt();
+                        server.close();
+                        System.out.println("Server closed.");
+                        break;
+                    }
+                    else
+                        continue;
+                }
                 // for each connection, create a thread to handle request
-                new Thread(new RequestHandler(client)).start();
+                Thread th = new Thread(new RequestHandler(client));
+                childThreads.add(th);
+                th.start();
+                System.out.println("A connection is established.");
             }
-            server.close();
+        }
+        catch (IOException e){
+            e.printStackTrace();
+            return;
+        }
+        finally {
             roomInfoHandler.close();
             logHandler.close();
-        }
-        catch (Exception e){
-            e.printStackTrace();
         }
     }
 

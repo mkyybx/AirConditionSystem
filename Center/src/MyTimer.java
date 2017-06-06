@@ -11,8 +11,10 @@ public class MyTimer implements Runnable{
             try {
                 Thread.sleep(10*1000);
             } catch (InterruptedException e) {
-                e.printStackTrace();
+                System.out.println("Timer is shut down.");
+                return;
             }
+
             // System.out.println("Timer expired...");
             Server.produceLock.lock();             // wait for dispatcher to finish current job
             try {                           // ticking every one minute
@@ -25,7 +27,6 @@ public class MyTimer implements Runnable{
                     }
                 }
                 else{
-                    System.out.println("Server shutdown");
                     flag = false;
                 }
             }
