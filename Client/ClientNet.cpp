@@ -61,7 +61,7 @@ int CClientNet::Connect(const char* port, const char* address) {
 		return 1;
 	}
 	m_sock = ConnectSocket;
-	
+	return 0;
 }
 
 int CClientNet::SendMsg(string m) {
@@ -70,6 +70,7 @@ int CClientNet::SendMsg(string m) {
 	char* length = (char*)(&a);
 	send(m_sock, length, sizeof(int), 0);
 	int state = send(m_sock, m.c_str(), len, 0);
+	cout << "send:" << endl << m << endl;
 	return state;
 }
 
@@ -77,32 +78,34 @@ string CClientNet::RecMsg() {
 	char buf[1024];
 	int length = 0;
 	for (int i = 0; i < sizeof(int); ) {
-		length = recv(m_sock, buf + i, sizeof(int), 0);
+		length = recv(m_sock, buf + i, sizeof(int) - i, 0);
 		if (length <= 0)
 			break;
 		else i += length;
 	}
-	printf("@RecMsg,msock=%x\n", m_sock);
-	if (length <= 0) {
-		//return length;
-		;
+	if (length == 0) {
+		return "NoMsg";
 	}
+	else if (length < 0)
+		return "";
 	else {
 		int num = *(int*)buf;
 		num = htonl(num);
 		for (int i = 0; i < num;) {
-			length = recv(m_sock, buf + i, sizeof(int), 0);
+			length = recv(m_sock, buf + i, num - i, 0);
 			if (length <= 0)
 				break;
 			else i += length;
 		}
-		if (length <= 0) {
-			//return length;
-			;
+		if (length < 0) {
+			return "NoMsg";
 		}
+		else if (length < 0)
+			return "";
 		buf[num] = 0;
-		printf("%s\n", buf);
-		return buf;
+		cout << "recv:" << endl << buf << endl;
+
+		return string(buf);
 	}
 }
 

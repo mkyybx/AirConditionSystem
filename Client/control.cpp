@@ -1,4 +1,4 @@
-#include <pthread.h>
+
 #include "control.h"
 
 using namespace std;
@@ -29,15 +29,16 @@ void* Control::control_first_login_to_master()
 	{
 		int state = slave.get_slave_state();
 		int num = slave.get_slave_queuenum();
-		
+		//printf("after num, slave=%d\n", slave);
+		//cout << state << num << endl;
+		//Sleep(5000);
 		if(state == OPEN_WITHOUT_LOGIN && num > 0)
 		{
 			slave.update_slave_state(LOGINING);
-			printf("mky");
 			control_masterClient("Login",2);
 		}
-		else if(state == OPEN_WITH_LOGIN)
-		    break;
+		else if (state == OPEN_WITH_LOGIN)
+			break;  
 	}
 	return NULL;
 }
@@ -51,26 +52,27 @@ void* Control::control_change_temp()
 {
 	while(1)
 	{
-		//printf("mky\n"); 
 		int a = slave.get_slave_current_wind_speed();
-		printf("mky %d\n",a); 
 		int i = sensor.sensor_calculate_temp(slave.get_slave_current_wind_speed());
-		printf("mky\n"); 
-		if(slave.get_slave_mode() == WINTER)
-		    slave.update_slave_current_temp(1);
-		else
-		    slave.update_slave_current_temp(-1);
-		    
-	    control_agentClient("Sensor_Temp",1);
-	    
-	    if(slave.get_slave_current_temp() == slave.get_slave_target_temp())
-	        control_masterClient("AC_Req",0);
-	    
-	    if(slave.get_slave_mode() == WINTER && (slave.get_slave_target_temp() - slave.get_slave_current_temp() >= 2))
-	        control_masterClient("AC_Req",1);
-	    
-	    if(slave.get_slave_mode() == SUMMER && (slave.get_slave_current_temp() - slave.get_slave_target_temp() >= 2))
-	        control_masterClient("AC_Req",1);
+
+		if (i == 1)//温度改变
+		{
+			if (slave.get_slave_mode() == WINTER)
+				slave.update_slave_current_temp(1);
+			else
+				slave.update_slave_current_temp(-1);
+
+			control_agentClient("Sensor_Temp", 1);
+
+			if (slave.get_slave_current_temp() == slave.get_slave_target_temp())
+				control_masterClient("AC_Req", 0);
+
+			if (slave.get_slave_mode() == WINTER && (slave.get_slave_target_temp() - slave.get_slave_current_temp() >= 2))
+				control_masterClient("AC_Req", 1);
+
+			if (slave.get_slave_mode() == SUMMER && (slave.get_slave_current_temp() - slave.get_slave_target_temp() >= 2))
+				control_masterClient("AC_Req", 1);
+		}	
 	}
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -87,11 +89,16 @@ void* Control::control_masterServer()//主机服务器
 	{
 		string msg = "NoMsg";
 		msg = masterClient.RecMsg();
+
+		if (msg == "")
+			if (isAgentClosed != 1) {
+				isAgentClosed = 0;
+				closesocket(agentClient.m_sock);
+				break;
+			}
 		
-		if(msg != "NoMsg")//收到信息 
+		else if (msg != "NoMsg")//收到信息 
 			control_get_master_msg_name(msg);//做相应处理 
-		else
-		    cout << "haofanya" << endl;
 	}
 
 	//关闭自身的Socket
@@ -124,12 +131,12 @@ void Control::port_of_masterServer(TiXmlElement* pElement)
 	
 	if(name == "Login_ACK")
 	{
-		int suc = xmlinfo.load_N_Login_ACK_doc(pElement,slave);
+		int suc = xmlinfo.load_N_Login_ACK_doc(pElement,&slave);
 	    control_agentClient("Login_ACK",suc);
 	}
 	else if(name == "Mode")
 	{
-		int r = xmlinfo.load_N_Mode_doc(pElement,slave);
+		int r = xmlinfo.load_N_Mode_doc(pElement,&slave);
 			
 		if(r != 0)
 			control_agentClient("Mode",2);
@@ -139,11 +146,11 @@ void Control::port_of_masterServer(TiXmlElement* pElement)
 	}
 	else if(name == "Fare_Info")
 	{
-		xmlinfo.load_N_Fare_Info_doc(pElement,slave);
+		xmlinfo.load_N_Fare_Info_doc(pElement,&slave);
 		control_agentClient("Fare_Info",2); 
 	}
 	else if(name == "Temp_Submit_Freq")
-	    xmlinfo.load_N_Temp_Submit_Freq_doc(pElement,slave); 
+	    xmlinfo.load_N_Temp_Submit_Freq_doc(pElement,&slave); 
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 void* Control::th_control_agentServer(void * object)
@@ -155,18 +162,28 @@ void* Control::control_agentServer()//从机服务器
 {
 	//listen(agentClient.m_sock,5);
 	printf("msock=%x\n", agentClient.m_sock);
+	WaitForSingleObject(mutex, INFINITE);
 
 	while(1)
 	{
 		string msg = "NoMsg";
 		msg = agentClient.RecMsg();
-		
-		if(msg != "NoMsg")//收到信息 
+		if (msg == "") {
+			if (isAgentClosed != 0) {
+				isAgentClosed = 1;
+				closesocket(masterClient.m_sock);
+			}
+			break;
+		}
+		else if(msg != "NoMsg")//收到信息 
 			control_get_agent_msg_name(msg);//做相应处理 
 	}
 
 	//关闭自身的Socket
-	closesocket(agentClient.m_sock);
+	if (isAgentClosed != 0)
+		closesocket(agentClient.m_sock);
+	ReleaseMutex(mutex);
+	return NULL;
 }
 
 void Control::control_get_agent_msg_name(string xmlstr) 
@@ -193,18 +210,19 @@ void Control::port_of_agentServer(TiXmlElement* pElement)
 	
 	if(name == "Login")
 	{
-		int suc = xmlinfo.load_Login_doc(pElement,slave); 
+		int suc = xmlinfo.load_Login_doc(pElement,&slave); 
 			
 			if(suc == 0)//成功插入 
 			{
-				control_masterClient("Login",suc);
+				cout << "插入成功！" << endl;
+				//control_masterClient("Login",suc);
 			} 
 			else 
 			    cout << "等待队列已满！" << endl;
 	}
 	else if(name == "Set_Temp")
 	{
-		int suc = xmlinfo.load_Set_Temp_doc(pElement,slave); 
+		int suc = xmlinfo.load_Set_Temp_doc(pElement,&slave); 
 			
 		if(suc != 2)
 			control_masterClient("AC_Req",1);
@@ -215,14 +233,14 @@ void Control::control_masterClient(string name,int suc)//主机客户端
 {
 	string msg; 
 	
-	if(name == "AC_Req")
-	    msg = xmlinfo.build_N_AC_Req_doc(slave,suc); 
-	else if(name == "Temp_Submit")
-	    msg = xmlinfo.build_N_Temp_Submit_doc(slave,2); 
-	else if(name == "Login")
-	    msg = xmlinfo.build_N_Login_doc(slave,2); 
+	if (name == "AC_Req")
+		msg = xmlinfo.build_N_AC_Req_doc(&slave, suc);
+	else if (name == "Temp_Submit")
+		msg = xmlinfo.build_N_Temp_Submit_doc(&slave, 2);
+	else if (name == "Login")
+		msg = xmlinfo.build_N_Login_doc(&slave, 2);
 			
-	masterClient.SendMsg(msg);	
+	masterClient.SendMsg(msg);
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 void Control::control_agentClient(string name,int suc)//从机客户端 
@@ -230,17 +248,17 @@ void Control::control_agentClient(string name,int suc)//从机客户端
 	string msg; 
 	
 	if(name == "Reg")
-	    msg = xmlinfo.build_Reg_doc(slave); 
+	    msg = xmlinfo.build_Reg_doc(&slave); 
 	else if(name == "Login_ACK")
-	    msg = xmlinfo.build_Login_ACK_doc(slave,suc);
+	    msg = xmlinfo.build_Login_ACK_doc(&slave,suc);
 	else if(name == "Sensor_Temp")
-	    msg = xmlinfo.build_Sensor_Temp_doc(slave); 
+	    msg = xmlinfo.build_Sensor_Temp_doc(&slave); 
 	else if(name == "Mode")
-	    xmlinfo.build_Mode_doc(slave);
+	    xmlinfo.build_Mode_doc(&slave);
 	else if(name == "Set_Temp")
-	    msg = xmlinfo.build_Set_Temp_doc(slave);
+	    msg = xmlinfo.build_Set_Temp_doc(&slave);
 	else if(name == "Fare_Info")
-        msg = xmlinfo.build_Fare_Info_doc(slave); 
+        msg = xmlinfo.build_Fare_Info_doc(&slave); 
 			printf("mky111\n");
 			cout << msg << endl;
 	agentClient.SendMsg(msg);	
@@ -248,76 +266,51 @@ void Control::control_agentClient(string name,int suc)//从机客户端
 
 int Control::control_init()
 {	
-	//int iRlt2 = masterClient.Connect("1111","127.0.0.1");//建立主机和agent的服务器 
-	int iRlt1 = agentClient.Connect("9999","10.28.197.143");//建立主机和agent的服务器 
-	printf("msock=%x\n", agentClient.m_sock);
-	//int iRlt1=0;
-	 //iRlt2=0;
+repeat:
+
+	//string masterip, agentip;
+	//cin << masterip;
+	//cin << agentip;
 	
-	
-	
-	//if (iRlt1 == 0 && iRlt2 == 0)//成功建立连接 
-	//{
-		printf("init ok...\n"); 
-		//int a = pthread_create(&tids[0], NULL,th_control_masterServer, NULL);//创建server线程 
-		//CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)th_control_masterServer, this, 0, tids);
-		printf("0...\n");
-		CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)th_control_agentServer, this, 0, tids + 1);
-		//pthread_create(&tids[1], NULL, th_control_agentServer, NULL);
-		printf("1...\n");
-		//CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)th_control_change_temp, this, 0, tids + 4);
-		//pthread_create(&tids[4], NULL, th_control_change_temp, NULL);
-		printf("4...\n");
-		
-		control_agentClient("Reg",1);
-				//CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)th_control_heart_temp_submit, this, 0, tids + 2);
-				//pthread_create(&tids[2], NULL,th_control_heart_temp_submit, NULL);
-				printf("2...\n");
-				{
-					//CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)th_control_first_login_to_master, this, 0, tids + 3);
-					//pthread_create(&tids[3], NULL, th_control_first_login_to_master, NULL);
-					printf("3...\n");
-				    //pthread_exit(NULL);
-				}
-				
-				while (1){
-					Sleep(1000);
-				}
-		return 0;
-		
-		/*int ctm1 = masterClient.Connect(8888,"127.0.0.1");//与主机建立连接
-		
-		if(ctm1 != 0) 
+	//int iRlt2 = masterClient.Connect("8888", masterip.c_str());//主机
+	//int iRlt1 = agentClient.Connect("9999", agentip.c_str());//agent
+
+	int iRlt2 = masterClient.Connect("9999","192.168.43.21");//主机
+
+	WCHAR c = 'a';
+	mutex = CreateMutex(NULL, false, &c);
+
+	if (iRlt2 == 0)//与主机成功建立连接
+	if (true)
+	{
+		cout << "HLHLHLHLHLHLHLHLHLHLHLHLHLHLHLHLHLHLHLHLHLH" << endl;
+		CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)th_control_masterServer, this, 0, tids);
+
+		int iRlt1 = agentClient.Connect("9999", "192.168.43.210");//agent
+		Sleep(1000);
+
+		if (iRlt1 == 0)//与从机成功建立连接
 		{
-			cout << "与主机无法建立连接！" << endl;
-			return 2;
-		}
-		else
-		{
-			int ctm2 = agentClient.Connect(8888,"127.0.0.1");
-			
-			if(ctm2 != 0)
+			cout << "MKYMKYMKYMKYMKYMKYMKYMKYMKYMKYMKYMKYMKYMKY" << endl;
+			CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)th_control_agentServer, this, 0, tids + 1);
+			CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)th_control_change_temp, this, 0, tids + 4);
+			control_agentClient("Reg", 1);
+			CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)th_control_heart_temp_submit, this, 0, tids + 2);
+			CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)th_control_first_login_to_master, this, 0, tids + 3);
+
+			while (1)
 			{
-				cout << "与从机无法建立连接！" << endl;
-			    return 3;
+				WaitForSingleObject(mutex, INFINITE);
+				goto repeat;
 			}
-			else 
-			{
-				control_agentClient("Reg",1);
-				pthread_create(&tids[2], NULL,th_control_heart_temp_submit, NULL);
-				
-				{
-					pthread_create(&tids[3], NULL, th_control_first_login_to_master, NULL);
-				    pthread_exit(NULL);
-				}
-				
-				return 0;
-			}		    
-		}*/	
-	/*}
+
+			return 0;
+		}
+	}
 	else
 	{
 		printf("serverNet init failed with error.\n");
-		return 1;
-	}*/		
+		Sleep(1000); 
+		goto repeat;
+	}		
 }

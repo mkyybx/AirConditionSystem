@@ -6,7 +6,11 @@ Slave::Slave()//初始化，从机开机
 	slave_state = OPEN_WITHOUT_LOGIN;
 	slave_mode = 1;
 	slave_queuenum = 0;
-	slave_current_wind_speed = 1;
+	slave_current_temp = 26;
+	slave_target_temp = slave_current_temp;
+	slave_current_wind_speed = 0;
+	slave_target_wind_speed = 0;
+	slave_inspection_frequency = 5;
 }
 
 int Slave::update_slave_target_temp(int tt)
@@ -82,11 +86,14 @@ int Slave::update_slave_userinfo_queue(string i,string u,string p)
 	if(slave_queuenum >= NUM_QUEUE)
 	    return 1;
 	    
-	int j;
+	int j = 0;
 	
 	for(j = 0;j < slave_queuenum;j++) 
-	    if(slave_userinfo_queue[j].slave_id == i)
-	        break;
+		if (slave_userinfo_queue[j].slave_id == i)
+		{
+			return 0;
+		}
+	  
 	
 	if(j == slave_queuenum)//相同id不在队列中
 	{
@@ -96,6 +103,7 @@ int Slave::update_slave_userinfo_queue(string i,string u,string p)
 		slave_queuenum++;
 		return 0;
 	}
+
 }
 
 void Slave::delete_queue()

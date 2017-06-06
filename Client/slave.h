@@ -45,6 +45,8 @@ class Slave
 		string get_slave_password(){return slave_password;}	
 		Userinfo get_slave_userinfo_queue(){return slave_userinfo_queue[0];}
 		string get_slave_queue_id(){return slave_userinfo_queue[0].slave_id;}
+		string get_slave_queue_user(){ return slave_userinfo_queue[0].slave_user;}
+		string get_slave_queue_password(){ return slave_userinfo_queue[0].slave_password;}
 		int get_slave_queuenum(){return slave_queuenum;}
 		int get_slave_inspection_frequency(){return slave_inspection_frequency;}
 		int get_slave_fare(){return slave_fare;}
@@ -60,7 +62,7 @@ class Slave
 		void update_slave_user(string u){slave_user = u;}
 		void update_slave_password(string p){slave_password = p;}
 		int update_slave_id_queue(string,int);
-		void update_slave_queuenum(int q){slave_queuenum = q;}
+		//void update_slave_queuenum(int q){slave_queuenum = q;}
 		void update_slave_inspection_frequency(int f){slave_inspection_frequency = f;}
 		void update_slave_fare(int f){slave_fare = f;}
 		void update_slave_energy(int e){slave_energy = e;}	
