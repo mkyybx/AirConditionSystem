@@ -65,6 +65,10 @@ int CClientNet::Connect(const char* port, const char* address) {
 }
 
 int CClientNet::SendMsg(string m) {
+	while (m_sock == 0) {
+		printf("in SendMsg, m_sock=0\n");
+		Sleep(1000);
+	}
 	int len = m.size();
 	int a = htonl(len);
 	char* length = (char*)(&a);
@@ -75,6 +79,10 @@ int CClientNet::SendMsg(string m) {
 }
 
 string CClientNet::RecMsg() {
+	while (m_sock == 0) {
+		printf("in RecMsg, m_sock=0\n");
+		Sleep(1000);
+	}
 	char buf[1024];
 	int length = 0;
 	for (int i = 0; i < sizeof(int); ) {

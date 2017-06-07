@@ -27,6 +27,7 @@ void* Control::control_first_login_to_master()
 {
 	while(1)
 	{
+		Sleep(1000);
 		int state = slave.get_slave_state();
 		int num = slave.get_slave_queuenum();
 		//printf("after num, slave=%d\n", slave);
@@ -52,6 +53,7 @@ void* Control::control_change_temp()
 {
 	while(1)
 	{
+		Sleep(1000);
 		int a = slave.get_slave_current_wind_speed();
 		int i = sensor.sensor_calculate_temp(slave.get_slave_current_wind_speed());
 
@@ -90,19 +92,26 @@ void* Control::control_masterServer()//主机服务器
 		string msg = "NoMsg";
 		msg = masterClient.RecMsg();
 
-		if (msg == "")
+		if (msg == "") {
+			printf("client socket lost, isAgentClosed=%d\n", isAgentClosed);
 			if (isAgentClosed != 1) {
 				isAgentClosed = 0;
 				closesocket(agentClient.m_sock);
-				break;
+				agentClient.m_sock = 0;
 			}
+			break;
+		}
 		
 		else if (msg != "NoMsg")//收到信息 
 			control_get_master_msg_name(msg);//做相应处理 
 	}
 
 	//关闭自身的Socket
-	closesocket(masterClient.m_sock);
+	if (isAgentClosed != 1) {
+		closesocket(masterClient.m_sock);
+		masterClient.m_sock = 0;
+	}
+	else isAgentClosed = -1;
 	
 	return NULL;
 }
@@ -161,17 +170,19 @@ void* Control::th_control_agentServer(void * object)
 void* Control::control_agentServer()//从机服务器 
 {
 	//listen(agentClient.m_sock,5);
-	printf("msock=%x\n", agentClient.m_sock);
 	WaitForSingleObject(mutex, INFINITE);
+	printf("client get mutex!\n");
 
 	while(1)
 	{
 		string msg = "NoMsg";
 		msg = agentClient.RecMsg();
 		if (msg == "") {
+			printf("client socket lost, isAgentClosed=%d\n", isAgentClosed);
 			if (isAgentClosed != 0) {
 				isAgentClosed = 1;
 				closesocket(masterClient.m_sock);
+				masterClient.m_sock = 0;
 			}
 			break;
 		}
@@ -180,9 +191,13 @@ void* Control::control_agentServer()//从机服务器
 	}
 
 	//关闭自身的Socket
-	if (isAgentClosed != 0)
+	if (isAgentClosed != 0) {
 		closesocket(agentClient.m_sock);
+		agentClient.m_sock = 0;
+	}
+	else isAgentClosed = -1;
 	ReleaseMutex(mutex);
+	printf("client release mutex!\n");
 	return NULL;
 }
 
@@ -266,6 +281,11 @@ void Control::control_agentClient(string name,int suc)//从机客户端
 
 int Control::control_init()
 {	
+	WCHAR c = 'a';
+	mutex = CreateMutex(NULL, false, &c);
+	CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)th_control_change_temp, this, 0, tids + 4);
+	CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)th_control_heart_temp_submit, this, 0, tids + 2);
+	CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)th_control_first_login_to_master, this, 0, tids + 3);
 repeat:
 
 	//string masterip, agentip;
@@ -275,42 +295,45 @@ repeat:
 	//int iRlt2 = masterClient.Connect("8888", masterip.c_str());//主机
 	//int iRlt1 = agentClient.Connect("9999", agentip.c_str());//agent
 
-	int iRlt2 = masterClient.Connect("9999","192.168.43.21");//主机
-
-	WCHAR c = 'a';
-	mutex = CreateMutex(NULL, false, &c);
-
+	int iRlt2 = masterClient.Connect("8888","127.0.0.1");//主机
 	if (iRlt2 == 0)//与主机成功建立连接
-	if (true)
 	{
 		cout << "HLHLHLHLHLHLHLHLHLHLHLHLHLHLHLHLHLHLHLHLHLH" << endl;
 		CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)th_control_masterServer, this, 0, tids);
 
-		int iRlt1 = agentClient.Connect("9999", "192.168.43.210");//agent
-		Sleep(1000);
+	repeat1:
+		int iRlt1 = agentClient.Connect("9999", "127.0.0.1");//agent
 
 		if (iRlt1 == 0)//与从机成功建立连接
 		{
 			cout << "MKYMKYMKYMKYMKYMKYMKYMKYMKYMKYMKYMKYMKYMKY" << endl;
 			CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)th_control_agentServer, this, 0, tids + 1);
-			CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)th_control_change_temp, this, 0, tids + 4);
+			Sleep(500);
 			control_agentClient("Reg", 1);
-			CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)th_control_heart_temp_submit, this, 0, tids + 2);
-			CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)th_control_first_login_to_master, this, 0, tids + 3);
 
 			while (1)
 			{
 				WaitForSingleObject(mutex, INFINITE);
+				printf("main thread get mutex!\n");
+				ReleaseMutex(mutex);
+				printf("main thread release mutex!\n");
+				printf("restart client!\n");
+				Sleep(500);
 				goto repeat;
 			}
 
 			return 0;
 		}
+		else {
+			printf("connect to agent faild\n");
+			Sleep(500);
+			goto repeat1;
+		}
 	}
 	else
 	{
 		printf("serverNet init failed with error.\n");
-		Sleep(1000); 
+		Sleep(500); 
 		goto repeat;
 	}		
 }
