@@ -23,6 +23,7 @@ public class Dispatcher implements Runnable{
         while(true){
             if(Thread.currentThread().isInterrupted())
                 return;
+
             Server.produceLock.lock();
             try {
                 // wait for timer's or client's signal
@@ -122,6 +123,8 @@ public class Dispatcher implements Runnable{
     }
 
     private void sendMsg(Integer client_no, String Msg) {
+        if (!Server.clients.containsKey(client_no))
+            return;
         try{
             if(!RequestHandler.sendMsg(new DataOutputStream(Server.clients.get(client_no).getOutputStream()), Msg))
                 Server.clients.remove(client_no);

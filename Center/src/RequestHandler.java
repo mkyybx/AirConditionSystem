@@ -49,9 +49,13 @@ public class RequestHandler implements Runnable {
             e.printStackTrace();
             return;
         }
+
+        sendMsg(output, XMLPacker.packModeInfo());
+        sendMsg(output, XMLPacker.packFreqInfo());
         // first message should be login message
         boolean isFirst = true, succeed = false;
         String req;
+        int temp = 26;
 
         while(Config.getServerState() != ServerState.Off && !client.isClosed()){  // until server is shut down or connection is closed by server
             try {                               // receive data from client
@@ -85,9 +89,19 @@ public class RequestHandler implements Runnable {
                 e.printStackTrace();
             }
 
-            // first message have to be LOGIN package, non-first package should not be LOGIN package
-            if ((isFirst && !parser.getRootName().equals(LOGIN)) || (!isFirst && parser.getRootName().equals(LOGIN)))
+            System.out.println("Before");
+            // first message have to be Temp Submit package
+            if (isFirst && !parser.getRootName().equals(TEMP_SUBMIT)){
+                System.out.println("IfsFirst: " + isFirst + " " +  parser.getRootName());
                 continue;
+            }
+            // if not login
+            if(!isFirst && !succeed && (!parser.getRootName().equals(LOGIN) && !parser.getRootName().equals(TEMP_SUBMIT))){
+                System.out.println("Continued..." + isFirst + " " + succeed + parser.getRootName());
+                continue;
+            }
+            isFirst = false;
+            System.out.println("here");
 
             switch (parser.getRootName()) {
                 case AC_REQ:
@@ -95,6 +109,7 @@ public class RequestHandler implements Runnable {
                     break;
 
                 case TEMP_SUBMIT:
+                    temp = parser.getTemp();
                     handleSubmit(parser.getClient_no(), parser.getTemp());
                     break;
 
@@ -128,20 +143,20 @@ public class RequestHandler implements Runnable {
                         return;             // no need to clean up, since login is not completed
                     }
 
-                    isFirst = !succeed;     // if not succeed, ignore messages except LOGIN
                     if (succeed){
                         System.out.println("Login succeed");
                         this.client_no = parser.getClient_no();
                         Log log = new Log();
                         log.Client_No = client_no;
                         log.Name = parser.getName();
+                        log.startDate = new MyDate(LocalDateTime.now());
                         positive = false;
                         Server.logTable.put(client_no, log);
                         Server.clients.put(client_no, client);
                         if(!Server.energyTable.containsKey(client_no))
                             Server.energyTable.put(client_no, 0.);
                         if(!Server.tempTable.containsKey(client_no))
-                            Server.tempTable.put(client_no, Config.getMode() == 0 ? 22 : 26);
+                            Server.tempTable.put(client_no, temp);
                     }
                     break;
             }
@@ -174,11 +189,12 @@ public class RequestHandler implements Runnable {
     }
 
     private void handleAC(int level, boolean positive) {
+        if(level <= 0 || level > 3)
+            return;
         Log log = Server.logTable.get(client_no);
         if(positive && !this.positive){                 // request for start
             Server.produceLock.lock();                  // wait for dispatcher
             try {
-                //Server.produceCond.await();
                 if (level != log.level)                 // if level changed, compute fee and create a new log
                     newLog(log, level);
                 if(Config.getServerState() == ServerState.Idle){        // turn server on
@@ -195,7 +211,6 @@ public class RequestHandler implements Runnable {
         else if(!positive && this.positive){    // request for stop
             Server.produceLock.lock();                 // wait for dispatcher
             try {
-                //Server.produceCond.await();
                 int ind = Server.queue.indexOf(client_no);
                 Server.queue.remove(ind);
                 WakeUpTable.setQueueChanged(true);
@@ -230,6 +245,7 @@ public class RequestHandler implements Runnable {
             Server.logHandler.insert(Config.logTable, logs);
         }
         catch (SQLException e){
+            e.printStackTrace();
             System.out.println("Error when insert into logTable.");
         }
 

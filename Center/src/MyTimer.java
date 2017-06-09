@@ -5,7 +5,7 @@ public class MyTimer implements Runnable{
 
     @Override
     public void run() {
-        int count = 0;
+        int count = 0, MAX_COUNT = 10;
         boolean flag = true;
         while (flag){
             try {
@@ -21,7 +21,7 @@ public class MyTimer implements Runnable{
                 if (Config.getServerState() != ServerState.Off){
                     count++;
                     WakeUpTable.setFareTimeout(true);
-                    if(count >= Config.getFrequency()){
+                    if(count >= MAX_COUNT){
                         WakeUpTable.setSchedulingTimeout(true);
                         count = 0;
                     }

@@ -35,6 +35,7 @@ public class DatabaseHandler {
         ArrayList<Object> ret = new ArrayList<>();
         try {
             String sql = "SELECT DISTINCT " + columnName + " FROM " + tableName;
+            System.out.println(sql);
             if (conditionSet.size() > 0)
                 sql += " WHERE " + prepStr(conditionSet.keySet(), "and");
 
@@ -89,8 +90,7 @@ public class DatabaseHandler {
 
             int i = 1;
             for(Object object: conditionSet.values()) {
-                mapValue(object, i);
-                i++;
+                mapValue(object, i++);
             }
 
             stmt.executeUpdate();
@@ -104,12 +104,12 @@ public class DatabaseHandler {
     protected synchronized void mapValue(Object object, int i) throws SQLException{
         if(object instanceof Integer)
             stmt.setInt(i, (int) object);
+        else if(object instanceof Double)
+            stmt.setDouble(i, (double) object);
+        else if(object instanceof Boolean)
+            stmt.setBoolean(i, (boolean) object);
         else if(object instanceof String)
             stmt.setString(i, (String) object);
-        else if(object instanceof Double)
-            stmt.setDouble(i, (Double) object);
-        else if(object instanceof Boolean)
-            stmt.setBoolean(i, (Boolean) object);
         else
             throw new RuntimeException("No match type for " + object);
     }
@@ -264,13 +264,17 @@ class LogHandler extends DatabaseHandler{
         ArrayList<Log> ret = new ArrayList<>();
         String sql = "SELECT * FROM " + tableName;
         if(conditionSet.size() > 0)
-            sql += " WHERE " + prepStr(conditionSet.keySet(), "and");
-        System.out.println("sql : " + sql);
+            sql += " WHERE " + prepStr(conditionSet.keySet(), "and") + ";";
+        System.out.println("SQL : " + sql);
+
+        for(String str : conditionSet.keySet()){
+            System.out.println(str + ": " + conditionSet.get(str));
+        }
 
         stmt = conn.prepareStatement(sql);
         int i = 1;
         for(Object object: conditionSet.values()){
-            mapValue(object, i);
+            mapValue(object, i++);
         }
         ResultSet res = stmt.executeQuery();
         while(res.next()){
@@ -288,6 +292,7 @@ class LogHandler extends DatabaseHandler{
             log.endTemp = res.getInt("endTemp");
             log.checkOut = res.getBoolean("checkOut");
             ret.add(log);
+            System.out.println("log.Month = " + log.startDate.toString());
         }
 
         res.close();

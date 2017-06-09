@@ -67,6 +67,11 @@ public class MainForm implements ActionListener, ItemListener {
         tfCurrentMode.setText(Config.getMode() == 0 ? "制冷" : "制暖");
 
         serverStart();
+
+        ArrayList<Object> roomList = Server.logHandler.selectColumnDistinct(Config.logTable, "Client_No",
+                DatabaseHandler.map("checkOut", false));
+        for (Object room : roomList)
+            cbCheckout.addItem(room);
     }
 
     private void createUIComponents() {
@@ -127,7 +132,7 @@ public class MainForm implements ActionListener, ItemListener {
             JOptionPane.showMessageDialog(null, "请选择要结算的房间");
             return;
         }
-        int client_no = Integer.parseInt((String) cbCheckout.getSelectedItem());
+        int client_no = (int) cbCheckout.getSelectedItem();
         double energy = roomCheckOut(client_no);
         double fee = energy * 5;
 
@@ -136,34 +141,42 @@ public class MainForm implements ActionListener, ItemListener {
     }
 
     private double roomCheckOut(int client_no) throws SQLException{
-        // if client never login
-        if (!Server.clients.containsKey(client_no))
-            return 0;
+        double energy = 0;
 
-        // checkout
-        try {
-            Server.clients.get(client_no).close();
+        if (Server.clients.containsKey(client_no)){     // if client have login before
+            // checkout
+            try {
+                Server.clients.get(client_no).close();
+            }
+            catch (IOException e) {
+                System.out.println("Client socket is already shut down");
+            }
+            Server.removeClient(client_no);
+            if(Server.logTable.containsKey(client_no)){
+                RequestHandler.newLog(Server.logTable.get(client_no), 0);
+                Server.logTable.remove(client_no);
+            }
+            energy = Server.energyTable.get(client_no);
+            Server.energyTable.remove(client_no);
+            Server.tempTable.remove(client_no);
+            Server.IPTable.remove(client_no);
         }
-        catch (IOException e) {
-            e.printStackTrace();
+        else{
+            HashMap<String, Object> conditionSet = DatabaseHandler.map("Client_No", client_no);
+            ArrayList<Log> logs =  Server.logHandler.select(Config.logTable, conditionSet);
+            for (Log log : logs)
+                energy += log.energy;
         }
-        Server.removeClient(client_no);
-        if(Server.logTable.containsKey(client_no)){
-            RequestHandler.newLog(Server.logTable.get(client_no), 0);
-            Server.logTable.remove(client_no);
-        }
-        double energy = Server.energyTable.get(client_no);
-        Server.energyTable.remove(client_no);
-        Server.tempTable.remove(client_no);
-        Server.IPTable.remove(client_no);
 
         // set checkOut to true in database
         HashMap<String, Object> conditionSet = DatabaseHandler.map("Client_No", client_no);
         HashMap<String, Object> valueSet = DatabaseHandler.map("checkOut", true);
-        Server.roomInfoHandler.update(Config.roomTable, conditionSet, valueSet);
+        Server.logHandler.update(Config.logTable, conditionSet, valueSet);
+        Server.roomInfoHandler.delete(Config.roomTable, conditionSet);
 
         // refresh combo box
         cbCheckout.removeItem(client_no);
+        //cbCheckout.invalidate();
 
         return energy;
     }
@@ -177,6 +190,7 @@ public class MainForm implements ActionListener, ItemListener {
             JOptionPane.showMessageDialog(null, "房间号不应为空或非正整数的字符串");
             return;
         }
+
         HashMap<String, Object> conditionSet = DatabaseHandler.map("Client_No", client_no);
         ArrayList<RoomInfo> res = Server.roomInfoHandler.select(Config.roomTable, conditionSet);
         if(res.size() == 0){                    // the room is available
@@ -198,6 +212,8 @@ public class MainForm implements ActionListener, ItemListener {
     }
 
     private void getReport() throws SQLException {
+        cbShowReport.removeAllItems();
+        cbShowReport.addItem("房间编号");
         int reportType = cbReport.getSelectedIndex();
         if(reportType == 0){
             JOptionPane.showMessageDialog(null, "请选择要查看的报表类型");
@@ -206,20 +222,29 @@ public class MainForm implements ActionListener, ItemListener {
         ArrayList<Object> roomList = Server.logHandler.selectColumnDistinct(Config.logTable, "Client_No", new HashMap<>());
         MyDate now = new MyDate(LocalDateTime.now());
         reports = new HashMap<>();
+        System.out.println("Room list size " + roomList.size());
 
         for (Object object: roomList){
             int client_no = (int) object;
             HashMap<String, Object> conditionSet = DatabaseHandler.map("Client_No", client_no, "startMonth", now.month);
+            //conditionSet = new HashMap<>();
             if(reportType > 1)
                 conditionSet.put("startWeek", now.week);
             if(reportType > 2)
                 conditionSet.put("startDay", now.day);
 
             ArrayList<Log> logs = Server.logHandler.select(Config.logTable, conditionSet);
-
-            reports.put(client_no, logs);
+            if (logs.size() > 0){
+                System.out.println("Record found.");
+                reports.put(client_no, logs);
+                cbShowReport.addItem(client_no);
+            }
         }
-        JOptionPane.showMessageDialog(null, "报表已在右边窗口生成，选择具体的房间查看详细信息");
+
+        if (reports.size() > 0)
+            JOptionPane.showMessageDialog(null, "报表已在右边窗口生成，选择具体的房间查看详细信息");
+        else
+            JOptionPane.showMessageDialog(null, "没有对应类型的报表");
     }
 
     @Override
@@ -258,11 +283,18 @@ public class MainForm implements ActionListener, ItemListener {
     public void itemStateChanged(ItemEvent e) {
         // only cbShowReport have a listener
         if(e.getStateChange() == ItemEvent.SELECTED){
-            int client_no = (int) e.getItem();
-            ArrayList<Log> logs = reports.get(client_no);
-            double fee = updateTable(logs);
-            tfSwitch.setText(Integer.toString(logs.size()));
-            tfFee.setText(Double.toString(fee));
+            try {
+                int client_no = (int) e.getItem();
+                ArrayList<Log> logs = reports.get(client_no);
+                double fee = updateTable(logs);
+                tfSwitch.setText(Integer.toString(logs.size()));
+                tfFee.setText(Double.toString(fee));
+            }
+            catch (ClassCastException exp){
+                updateTable(new ArrayList<>());
+                tfSwitch.setText("");
+                tfFee.setText("");
+            }
         }
     }
 
@@ -275,27 +307,28 @@ public class MainForm implements ActionListener, ItemListener {
             JOptionPane.showMessageDialog(null, "频率不应为空或非正整数的字符串");
             return;
         }
-        if(freq == Config.getFrequency()){
-        }
-        else{                                   // set new frequency
+
+        if(freq != Config.getFrequency()){  // set new frequency
+            Server.produceLock.lock();
             try {
-                Server.produceLock.lock();
                 Config.setFrequency(freq);
                 WakeUpTable.setFrequencyChanged(true);
-                JOptionPane.showMessageDialog(null, "频率变为" + freq);
             }
             finally {
                 Server.wakeCond.signal();
                 Server.produceLock.unlock();
             }
-
+            JOptionPane.showMessageDialog(null, "频率变为" + freq);
         }
+        else
+            JOptionPane.showMessageDialog(null, "频率已经为" + freq);
+        tfFreq.setText("");
     }
 
     private void setMode() {
         int mode = 1 - Config.getMode();
+        Server.produceLock.lock();
         try {
-            Server.produceLock.lock();
             Config.setMode(mode);
             WakeUpTable.setModeChanged(true);
         }
