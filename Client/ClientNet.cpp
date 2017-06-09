@@ -60,6 +60,8 @@ int CClientNet::Connect(const char* port, const char* address) {
 		WSACleanup();
 		return 1;
 	}
+	WCHAR abc = 'b';
+	sendingMutex = CreateMutex(0, false, &abc);
 	m_sock = ConnectSocket;
 	return 0;
 }
@@ -72,9 +74,11 @@ int CClientNet::SendMsg(string m) {
 	int len = m.size();
 	int a = htonl(len);
 	char* length = (char*)(&a);
+	WaitForSingleObject(sendingMutex, INFINITE);
 	send(m_sock, length, sizeof(int), 0);
+	ReleaseMutex(sendingMutex);
 	int state = send(m_sock, m.c_str(), len, 0);
-	cout << "send:" << endl << m << endl;
+	cout << GetCurrentThreadId() <<" send:" << endl << m << endl;
 	return state;
 }
 

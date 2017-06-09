@@ -4,6 +4,7 @@
 #include "functions.h" 
 #include "define.h"
 
+
 using namespace std;
 
 typedef struct{
@@ -24,16 +25,20 @@ class Slave
 		int slave_target_wind_speed;//从机设定风速
 		int slave_mode;//从机模式 
 		string slave_user;
-		string slave_password;	
+		string slave_password;
+		string slave_id;
 		Userinfo slave_userinfo_queue[NUM_QUEUE];
 		int slave_queuenum;
 		int slave_inspection_frequency;
 		int slave_fare;
 		int slave_energy;
+		int slave_wind_permitted;
 						
 	public:
 		Slave();
-			
+		void clearQueue();
+		void loginReqHandler(Userinfo userInfo);
+		void loginACKHandler(Userinfo userInfo, bool isSucceed);//Userinfo的ID字段随意
 		int get_slave_num(){return slave_num;}
 		int get_slave_state(){return slave_state;}
 		int get_slave_current_temp(){return slave_current_temp;}
@@ -51,6 +56,7 @@ class Slave
 		int get_slave_inspection_frequency(){return slave_inspection_frequency;}
 		int get_slave_fare(){return slave_fare;}
 		int get_slave_energy(){return slave_energy;}
+		int get_slave_wind_permitted(){ return slave_wind_permitted; }
 		
 		void update_slave_num(int n){slave_num = n;}
 		void update_slave_state(int s){slave_state = s;}
@@ -66,9 +72,13 @@ class Slave
 		void update_slave_inspection_frequency(int f){slave_inspection_frequency = f;}
 		void update_slave_fare(int f){slave_fare = f;}
 		void update_slave_energy(int e){slave_energy = e;}	
+		void update_slave_wind_permitted(int p){ slave_wind_permitted = p; }
 		int update_slave_userinfo_queue(string,string,string);
 		
 		void delete_queue();
+		void reset_slave();
+		int judge_slave_info(string, string);
+		int judge_slave_temp();
 };
 
 #endif

@@ -16,7 +16,7 @@ class Sensor
 		{
 			temp = 0;
 		}
-		int sensor_calculate_temp(int);
+		int sensor_calculate_temp(int, int, int);
 };
 
 #endif

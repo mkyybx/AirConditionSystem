@@ -119,6 +119,9 @@ public class Controller implements Runnable{
             @Override
             public void onParseComplete(XMLizable payload, int num, boolean isWebSide) {
                 if (!isWebSide) {
+                    if (payload instanceof SensorTempInfo) {
+                        System.out.println("123");
+                    }
                     lock.lock();
                     ArrayList<Integer> webSide = inverseFind(webSideRoomMap, clientRoomMap.get(num));
                     for (Integer i : webSide) {
@@ -141,14 +144,35 @@ public class Controller implements Runnable{
             }
         }
 
+        //此处为了转发设定温度信息给其余所有登录客户端
+        class TargetTempInfoHandlerImpl extends directForwardInfoHandler {
+            @Override
+            public void onParseComplete(XMLizable payload, int num, boolean isWebSide) {
+                super.onParseComplete(payload, num, isWebSide);
+                if (isWebSide) {
+                    int room = webSideRoomMap.get(num);
+                    ArrayList<Integer> webSides = inverseFind(webSideRoomMap, room);
+                    for (int i : webSides) {
+                        ByteArrayOutputStream stream = new ByteArrayOutputStream();
+                        try {
+                            payload.write(stream);
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
+                        WebSocketFactory.send(i, stream.toByteArray());
+                    }
+                }
+            }
+        }
+
         //费用信息
         XMLizableParser.getInstance().setFareInfoHandler(new directForwardInfoHandler());
 
         //Login ACK
         XMLizableParser.getInstance().setLoginACKInfoHandler((payload, num, isWebSide) -> {
             if (!isWebSide) {
-                int i = payload.getUuid();
-                int webSide = webSideRoomMap.get(i);
+                int webSide = payload.getUuid();
+
                 webSideLoginMap.put(webSide, payload.getSuccessful());
                 WebSocketFactory.send(webSide, payload.getRawString());
                 if (!payload.getSuccessful()) {
@@ -170,6 +194,7 @@ public class Controller implements Runnable{
         //模式信息
         XMLizableParser.getInstance().setModeInfoHandler((payload, num, isWebSide) -> {
             if (payload.isHeating() != isHeatMode && !isWebSide) {
+                isHeatMode = payload.isHeating();
                 isWebSide = payload.isHeating();
                 WebSocketFactory.broadcast(payload.getRawString());
             }
@@ -185,33 +210,24 @@ public class Controller implements Runnable{
         XMLizableParser.getInstance().setSensorTempInfoHandler(new directForwardInfoHandler());
 
         //目标温度消息
-        XMLizableParser.getInstance().setTargetTempInfoHandler(new directForwardInfoHandler());
+        XMLizableParser.getInstance().setTargetTempInfoHandler(new TargetTempInfoHandlerImpl());
 
         //Web端登录信息
         XMLizableParser.getInstance().setWebLoginInfoHandler((payload, num, isWebSide) -> {
             if (isWebSide) {
-                WebSocketFactory.send(num, new byte[]{'a', 'b'});
                 if (webSideRoomMap.get(num) == null) {
                     try {
                         int clientID = inverseFind(clientRoomMap, payload.getRoom()).get(0);
                         webSideRoomMap.put(num, payload.getRoom());
                         webSideLoginMap.put(num, false);
                         ByteArrayOutputStream bao = new ByteArrayOutputStream();
-                        new ClientLoginInfo(payload, payload.getRoom()).write(bao);
+                        new ClientLoginInfo(payload, num).write(bao);
                         ClientFactory.getInstance().send(clientID, bao.toByteArray());
-                    } catch (ArrayIndexOutOfBoundsException ex) {
+                    } catch (Exception ex) {
                         sendErrorInfo(num, UNREGISTERED_CLIENT);
-                    } catch (IOException | UnimplementedException e) {
-                        e.printStackTrace();
                     }
                 } else {
-                    ByteArrayOutputStream bao = new ByteArrayOutputStream();
-                    try {
-                        new LoginACKInfo(num, true).write(bao);
-                    } catch (IOException | UnimplementedException e) {
-                        e.printStackTrace();
-                    }
-                    WebSocketFactory.send(num, bao.toByteArray());
+                    sendErrorInfo(num, ILLEGAL_OPERATION);
                 }
             }
         });

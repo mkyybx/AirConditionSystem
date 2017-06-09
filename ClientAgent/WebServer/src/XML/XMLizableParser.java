@@ -113,7 +113,7 @@ public class XMLizableParser {
                 break;
             case "Set_Temp": {
                 String temp = root.element("Temp").getText();
-                String windLevel = root.element("Wind_level").getText();
+                String windLevel = root.element("Wind_Level").getText();
                 TargetTempInfo tempInfo = new TargetTempInfo(Integer.parseInt(temp), Byte.parseByte(windLevel));
                 tempInfo.setRawString(inputString);
                 TargetTempInfoHandler.onParseComplete(tempInfo, num, isWebSide);

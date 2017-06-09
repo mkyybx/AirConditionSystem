@@ -34,6 +34,8 @@ class Control
 			isAgentClosed = -1;
 			//Slave slave(1);	
 		}
+		CClientNet* getAgentClient();
+		CClientNet* getMasterClient();
 		static void* th_control_heart_temp_submit(void*);
 		void* control_heart_temp_submit();
 		static void* th_control_first_login_to_master(void*);

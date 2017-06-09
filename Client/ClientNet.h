@@ -12,4 +12,10 @@ class CClientNet
 	    //int Init(const char*,int);//初始化服务器,返回0表示成功
 	    string RecMsg();
 		void Run();//更新数据
+		HANDLE sendingMutex;
+
+		CClientNet()
+		{
+			m_sock = 0;
+		}
 };

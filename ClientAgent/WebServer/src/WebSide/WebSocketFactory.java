@@ -37,8 +37,10 @@ public class WebSocketFactory {
 
     public static void send(int num, byte[] message) {
         Session session = sessionMapping.get(num);
+        System.out.print("Websocket " + num + " send");
         try {
             session.getBasicRemote().sendText(new String(message));
+            System.out.println(new String(message));
         } catch (IOException e) {
             e.printStackTrace();
             System.out.println("Error");
@@ -48,7 +50,7 @@ public class WebSocketFactory {
     public static void broadcast(byte[] message) {
         for (Map.Entry<Integer, Session> entry : sessionMapping.entrySet()) {
             try {
-                entry.getValue().getBasicRemote().sendBinary(MappedByteBuffer.wrap(message));
+                entry.getValue().getBasicRemote().sendText(new String(message));
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -73,17 +75,21 @@ public class WebSocketFactory {
             sessionID = (int) (Math.random() * 65536);
         } while (sessionMapping.put(sessionID, session) != null);
         this.token = token;
+        System.out.println("Websocket " + sessionID + " Connected");
         eventHandler.onWebSocketStart(sessionID);
     }
 
     @OnClose
     public void onClose() {
+        System.out.println("Websocket " + sessionID + " closed");
         sessionMapping.remove(sessionID);
         eventHandler.onWebSocketEnd(sessionID);
     }
 
     @OnMessage
     public void onMessage(String message) throws DocumentException {
+        System.out.print("Websocket " + sessionID + " receive");
+        System.out.println(message);
         XMLizableParser.getInstance().parse(message.getBytes(), sessionID, true);
     }
 

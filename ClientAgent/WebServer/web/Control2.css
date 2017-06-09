@@ -1,11 +1,5 @@
 @charset "utf-8";
 /* CSS Document */
-html{   
-    width: 100%;   
-    height: 100%;   
-    overflow: hidden;   
-    font-style: sans-serif;   
-} 
 
 #Control{
 	position: absolute;
@@ -34,6 +28,54 @@ html{
     border-radius: 4px;   
     background-color: #4a77d4;   
 } 
+#Control .input_2{   
+    width: 50px;   
+    height: 50px;   
+    margin-bottom: 10px;   
+    outline: none;   
+    padding: 10px;   
+    font-size: 13px;   
+    color: #fff;   
+    text-shadow:1px 1px 1px;   
+    border-top: 1px solid #312E3D;   
+    border-left: 1px solid #312E3D;   
+    border-right: 1px solid #312E3D;   
+    border-bottom: 1px solid #56536A;  
+    border-radius: 4px;   
+    background-color: #414F84;   
+} 
+#Control .start_{   
+    width: 70px;   
+    height:70px; 
+    border-radius: 35px;
+    margin-bottom: 10px;   
+    outline: none;   
+    padding: 10px;   
+    font-size: 13px;   
+    color: #3B3838;   
+    text-shadow:1px 1px 1px;   
+    border-top: 1px solid #312E3D;   
+    border-left: 1px solid #312E3D;   
+    border-right: 1px solid #312E3D;   
+    border-bottom: 1px solid #56536A;    
+    background-color: #D4D7E5;   
+} 
+#Control .start_2{   
+    width: 70px;   
+    height:70px; 
+    border-radius: 35px;
+    margin-bottom: 10px;   
+    outline: none;   
+    padding: 10px;   
+    font-size: 13px;   
+    color: #3B3838;   
+    text-shadow:1px 1px 1px;   
+    border-top: 1px solid #312E3D;   
+    border-left: 1px solid #312E3D;   
+    border-right: 1px solid #312E3D;   
+    border-bottom: 1px solid #56536A;    
+    background-color: #B4B3B3;   
+} 
 .temparature_show
 {
 	 text-shadow:1px 1px 1px;   
@@ -44,13 +86,6 @@ html{
     border-radius: 4px;   
     background-color:#2D2D3F;   
 }
-body{   
-    width: 100%;   
-    height: 100%;   
-    font-family: 'Open Sans',sans-serif;   
-    margin: 0;   
-    background-color: #4A374A;   
-}  
 h1{   
     color: #fff;   
     text-shadow:0 0 10px;   
