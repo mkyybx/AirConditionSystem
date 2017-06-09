@@ -9,11 +9,13 @@ using namespace std;
 class Sensor
 {
 	private:
-		time_t sensor_start_time;
-		time_t sensor_current_time;
-		time_t sensor_past_time;
+		int temp;
+
 	public:
-		Sensor(){}
+		Sensor()
+		{
+			temp = 0;
+		}
 		int sensor_calculate_temp(int);
 };
 
