@@ -11,7 +11,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{CABDCFBA-3052-446F-B0C8-11A2C9C81E48}</ProjectGuid>
+    <ProjectGuid>{0923622E-5248-4089-8DC0-C262DB6CCC9F}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>AirConditioner</RootNamespace>
   </PropertyGroup>

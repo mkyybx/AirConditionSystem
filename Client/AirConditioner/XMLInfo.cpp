@@ -4,7 +4,6 @@ const char * XMLInfo::int_to_const_char(int x)
 {
     char* a = new char[11];
     const char *p=itoa(x,a,10);
-    cout << "lalala" << p << endl;
     return a;
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -95,7 +94,7 @@ string XMLInfo::build_Set_Temp_doc(Slave* s)//登录ACK
 	msg1->LinkEndChild(new TiXmlText(int_to_const_char(s->get_slave_target_temp())));
 	root->LinkEndChild( msg1 );
 	TiXmlElement * msg2 = new TiXmlElement( "Wind_Level");
-	msg2->LinkEndChild(new TiXmlText(int_to_const_char(s->get_slave_target_wind_speed())));
+	msg2->LinkEndChild(new TiXmlText(int_to_const_char(s->get_slave_current_wind_speed())));
 	root->LinkEndChild( msg2 );
 
 	root->Accept(&printer);
@@ -242,27 +241,31 @@ int XMLInfo::load_Set_Temp_doc(TiXmlElement* pElement,Slave* s)
 
 	if (s->get_slave_mode() == WINTER)
 	{
-		if (tt <= s->get_slave_current_temp())
-			suc1 = 1;
-		else
+		if (tt < s->get_slave_current_temp())
+			suc1 = 999;
+		else if (tt > s->get_slave_current_temp())
 		{
-			//if (tt - s->get_slave_current_temp() > 1)
-				suc1 = s->update_slave_target_temp(tt);
-			//else
-				//suc1 = 1;
+			suc1 = 0;
+			s->update_slave_target_temp(tt);
 		}
+		else if (tt == s->get_slave_current_temp() && s->get_slave_wind_permitted() == 1)
+			suc1 = 999;
+		else
+			suc1 = 999;
 	}	
 	else if (s->get_slave_mode() == SUMMER)
 	{
-		if (tt >= s->get_slave_current_temp())
-			suc1 = 1;
-		else 
+		if (tt > s->get_slave_current_temp())
+			suc1 = 999;
+		else if (tt < s->get_slave_current_temp())
 		{
-			//if (s->get_slave_current_temp() - tt > 1)
-				suc1 = s->update_slave_target_temp(tt);
-			//else
-				//suc1 = 1;
+			suc1 = 0;
+			s->update_slave_target_temp(tt);
 		}
+		else if (tt == s->get_slave_current_temp() && s->get_slave_wind_permitted() == 1)
+			suc1 = 999;
+		else
+			suc1 = 999;
 	}
 	else
 	    suc1 = s->update_slave_target_temp(tt);
@@ -270,8 +273,15 @@ int XMLInfo::load_Set_Temp_doc(TiXmlElement* pElement,Slave* s)
 	TiXmlNode* pRecord2 = pElement->FirstChild("Wind_Level");
 	TiXmlElement* pElement2 = pRecord2->ToElement();
 	int ts = atoi(pElement2 -> GetText());
-	suc2 = s->update_slave_target_wind_speed(ts);
-	
+	suc2 = s->update_slave_current_wind_speed(ts);
+
+	if (suc2 == 0 && s->get_slave_wind_permitted() == 1)
+		suc2 = 0;
+	else if (suc2 == 0 && s->get_slave_wind_permitted() == 0)
+		suc2 = 1;
+	cout << "当前温度" << s->get_slave_current_temp() << endl;
+	cout << "目标温度" << s->get_slave_target_temp() << endl;
+	cout << "当前风速" << s->get_slave_current_wind_speed() << endl;
 	return suc1 + suc2;
 }
 
@@ -335,7 +345,7 @@ void XMLInfo::load_N_Wind_doc(TiXmlElement* pElement, Slave* s)
 	TiXmlNode* pRecord1 = pElement->FirstChild("Level");
 	TiXmlElement* pElement1 = pRecord1->ToElement();
 	int l = atoi(pElement1->GetText());
-	int suc1 = s->update_slave_target_wind_speed(l);
+	int suc1 = s->update_slave_current_wind_speed(l);
 	
 	TiXmlNode* pRecord2 = pElement->FirstChild("Start_Blowing");
 	TiXmlElement* pElement2 = pRecord2->ToElement();

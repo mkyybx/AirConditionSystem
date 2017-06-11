@@ -67,9 +67,9 @@ int CClientNet::Connect(const char* port, const char* address) {
 }
 
 int CClientNet::SendMsg(string m) {
-	while (m_sock == 0) {
-		printf("in SendMsg, m_sock=0\n");
-		Sleep(1000);
+	if (m_sock == 0) {
+		//printf("in SendMsg, m_sock=0\n");
+		return -1;
 	}
 	int len = m.size();
 	int a = htonl(len);
@@ -78,14 +78,14 @@ int CClientNet::SendMsg(string m) {
 	send(m_sock, length, sizeof(int), 0);
 	ReleaseMutex(sendingMutex);
 	int state = send(m_sock, m.c_str(), len, 0);
-	cout << GetCurrentThreadId() <<" send:" << endl << m << endl;
+	cout << GetCurrentThreadId() <<" 发送信息:" << endl << m << endl;
 	return state;
 }
 
 string CClientNet::RecMsg() {
-	while (m_sock == 0) {
+	if (m_sock == 0) {
 		printf("in RecMsg, m_sock=0\n");
-		Sleep(1000);
+		return "NoMsg";
 	}
 	char buf[1024];
 	int length = 0;
@@ -95,10 +95,7 @@ string CClientNet::RecMsg() {
 			break;
 		else i += length;
 	}
-	if (length == 0) {
-		return "NoMsg";
-	}
-	else if (length < 0)
+	if (length <= 0)
 		return "";
 	else {
 		int num = *(int*)buf;
@@ -109,66 +106,15 @@ string CClientNet::RecMsg() {
 				break;
 			else i += length;
 		}
-		if (length < 0) {
-			return "NoMsg";
-		}
-		else if (length < 0)
+		if (length <= 0)
 			return "";
 		buf[num] = 0;
-		cout << "recv:" << endl << buf << endl;
+		cout << "收到信息:" << endl << buf << endl;
 
 		return string(buf);
 	}
 }
 
-/*int CClientNet::Connect( int port,const char* address )
-{
-	int rlt = 0;
-
-	//用于记录错误信息并输出
-	int iErrMsg;
-	//启动WinSock
-	WSAData wsaData;
-	iErrMsg = WSAStartup(MAKEWORD(1,1),&wsaData);
-	if (iErrMsg != NO_ERROR)
-		//有错误
-	{
-		printf("failed with wsaStartup error : %d\n",iErrMsg);
-
-		rlt = 1;
-		return rlt;
-	}
-
-	//创建Socket
-	m_sock = socket(AF_INET,SOCK_STREAM,IPPROTO_TCP);
-	if (m_sock == INVALID_SOCKET)
-		//创建Socket失败
-	{
-		printf("socket failed with error : %d\n",WSAGetLastError());
-
-		rlt = 2;
-		return rlt;
-	}
-
-	//目标服务器数据
-	sockaddr_in sockaddrServer;
-	sockaddrServer.sin_family = AF_INET;
-	sockaddrServer.sin_port = port;
-	sockaddrServer.sin_addr.s_addr = inet_addr(address);
-	printf("%d\n",port);
-
-	//连接,sock与目标服务器连接
-	iErrMsg = connect(m_sock,(sockaddr*)&sockaddrServer,sizeof(sockaddrServer));
-	if (iErrMsg < 0)
-	{
-		printf("connect failed with error : %d\n",iErrMsg);
-
-		rlt = 3;
-		return rlt;
-	}
-
-	return rlt;
-}*/
 /*
 int CClientNet::SendMsg(string m)
 {

@@ -5,6 +5,10 @@ using namespace std;
 
 Control* control;
 
+bool Control::getFirstTempSubmitSent() {
+	return isFirstTempSubmitSent;
+}
+
 CClientNet* Control::getAgentClient() {
 	return &agentClient;
 }
@@ -12,9 +16,19 @@ CClientNet* Control::getMasterClient() {
 	return &masterClient;
 }
 
+
+void Slave::setCurrentTemp(int temp) {
+	slave_current_temp = temp;
+	isCurrentTempChanged = true;
+	XMLInfo xmlinfo;
+	control->getAgentClient()->SendMsg(xmlinfo.build_Sensor_Temp_doc(this));
+}
+
 void Slave::loginReqHandler(Userinfo userInfo) {
 	XMLInfo xmlinfo;
 	string s;
+	while (control->getFirstTempSubmitSent() == false)
+		Sleep(100);
 	if (slave_state == OPEN_WITHOUT_LOGIN) {
 		slave_user = userInfo.slave_user;
 		slave_password = userInfo.slave_password;
@@ -24,8 +38,13 @@ void Slave::loginReqHandler(Userinfo userInfo) {
 		slave_state = LOGINING;
 		return;
 	}
-	else if (slave_state == LOGINING)
+	else if (slave_state == LOGINING) {
+		static int retryTimes = 0;
+		retryTimes++;
 		s = xmlinfo.build_Login_ACK_doc(0, "-1");
+		if (retryTimes > 3)
+			closesocket(control->getMasterClient()->m_sock);
+	}
 	else if (slave_state == OPEN_WITH_LOGIN) {
 		if (userInfo.slave_user == slave_user && userInfo.slave_password == slave_password)
 		{
@@ -68,6 +87,8 @@ void* Control::control_heart_temp_submit()
 	{
 		int feq = slave.get_slave_inspection_frequency();
 		control_masterClient("Temp_Submit",2);
+		if (!isFirstTempSubmitSent)
+			isFirstTempSubmitSent = true;
 		Sleep(feq * 1000);
 	}
 }
@@ -103,6 +124,20 @@ void* Control::control_first_login_to_master()
 	return NULL;
 }
 
+void* Control::th_userInputListener(void* object) {
+	return ((Control *)object)->userInputListener();
+}
+
+void* Control::userInputListener() {
+	int i;
+	while (true) {
+		cout << "您可直接键入室内温度后按回车来设定室内温度。" << endl;
+		scanf("%d", &i);
+		slave.setCurrentTemp(i);
+		cout << "当前室内温度为" << i << "度" << endl;
+	}
+}
+
 void* Control::th_control_change_temp(void * object)
 {
     return ((Control *) object)->control_change_temp();
@@ -112,10 +147,30 @@ void* Control::control_change_temp()
 {
 	while(1)
 	{
-		Sleep(1000);
 		int a = slave.get_slave_current_wind_speed();
 		int j = slave.judge_slave_temp();
 		int i = sensor.sensor_calculate_temp(slave.get_slave_current_wind_speed(), j, slave.get_slave_wind_permitted());
+
+
+		cout << "当前温度" << slave.get_slave_current_temp() << endl;
+		cout << "目标温度" << slave.get_slave_target_temp() << endl;
+		cout << "当前风速" << slave.get_slave_current_wind_speed() << endl;
+
+
+
+
+		if (slave.get_slave_mode() == WINTER && (slave.get_slave_target_temp() - slave.get_slave_current_temp() >= 2) && slave.get_isCurrentTempChanged() == true)
+		{
+			control_masterClient("AC_Req", 1);
+			slave.update_isCurrentTempChanged();
+		}
+
+
+		if (slave.get_slave_mode() == SUMMER && (slave.get_slave_current_temp() - slave.get_slave_target_temp() >= 2) && slave.get_isCurrentTempChanged() == true)
+		{
+			control_masterClient("AC_Req", 1);
+			slave.update_isCurrentTempChanged();
+		}
 		
 
 		if (i == TRUE && j == FALSE)//温度改变
@@ -124,17 +179,21 @@ void* Control::control_change_temp()
 				slave.update_slave_current_temp(1);
 			else
 				slave.update_slave_current_temp(-1);
-
+			cout << "当前温度" << slave.get_slave_current_temp() << endl;
+			cout << "目标温度" << slave.get_slave_target_temp() << endl;
+			cout << "当前风速" << slave.get_slave_current_wind_speed()<< endl;
 			control_agentClient("Sensor_Temp", 1);
 
 			if (slave.get_slave_current_temp() == slave.get_slave_target_temp())
 				control_masterClient("AC_Req", 0);
 
-			if (slave.get_slave_mode() == WINTER && (slave.get_slave_target_temp() - slave.get_slave_current_temp() >= 2))
+			if (slave.get_slave_mode() == WINTER && (slave.get_slave_target_temp() - slave.get_slave_current_temp() >= 2) && slave.get_slave_wind_permitted() == 0)
 				control_masterClient("AC_Req", 1);
 
-			if (slave.get_slave_mode() == SUMMER && (slave.get_slave_current_temp() - slave.get_slave_target_temp() >= 2))
+			if (slave.get_slave_mode() == SUMMER && (slave.get_slave_current_temp() - slave.get_slave_target_temp() >= 2) && slave.get_slave_wind_permitted() == 0)
 				control_masterClient("AC_Req", 1);
+
+			
 		}	
 	}
 }
@@ -146,16 +205,16 @@ void* Control::th_control_masterServer(void * object)
 
 void* Control::control_masterServer()//主机服务器 
 {
-	//listen(masterClient.m_sock,5);
-
 	while(1)
 	{
 		string msg = "NoMsg";
 		msg = masterClient.RecMsg();
 
-		if (msg == "") {
+		if (msg == "") 
+		{
 			printf("master socket lost, isAgentClosed=%d\n", isAgentClosed);
-			if (isAgentClosed != 1) {
+			if (isAgentClosed != 1) 
+			{
 				isAgentClosed = 0;
 				closesocket(agentClient.m_sock);
 				agentClient.m_sock = 0;
@@ -220,8 +279,9 @@ void Control::port_of_masterServer(TiXmlElement* pElement)
 	{
 		int r = xmlinfo.load_N_Mode_doc(pElement,&slave);
 		control_agentClient("Mode",2);
-			
-		if(r == 2 || r == 4 || r == 6 || r == 8)
+		control_agentClient("Set_Temp", 2);
+
+		if(r == 2 || r == 6)
 			control_masterClient("AC_Req",1);
 	}
 	else if(name == "Fare_Info")
@@ -320,8 +380,11 @@ void Control::port_of_agentServer(TiXmlElement* pElement)
 	{
 		int suc = xmlinfo.load_Set_Temp_doc(pElement,&slave); 
 			
-		if(suc != 2)
-			control_masterClient("AC_Req",1);
+		if(suc == 0 || suc == 1)
+			control_masterClient("AC_Req", 1);
+
+		if (suc >= 999 )
+			control_masterClient("AC_Req", 0);
 	}
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -355,24 +418,26 @@ void Control::control_agentClient(string name,int suc)//从机客户端
 	    msg = xmlinfo.build_Set_Temp_doc(&slave);
 	else if(name == "Fare_Info")
         msg = xmlinfo.build_Fare_Info_doc(&slave); 
-			printf("mky111\n");
-			cout << msg << endl;
+
 	agentClient.SendMsg(msg);	
 }
 
-int Control::control_init()
+int Control::control_init(const char* serverIP, const char* serverPort, const char* ClientIP, const char* ClientPort, int roomNum)
 {	
+	slave.setSlaveNum(roomNum);
 	control = this;
 	WCHAR c = 'a';
 	mutex = CreateMutex(NULL, false, &c);
 	CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)th_control_change_temp, this, 0, tids + 4);
-	printf("change temp=%d\n", tids[4]);
+	printf("改变温度线程初始化成功！ change temp=%d\n", tids[4]);
 	CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)th_control_heart_temp_submit, this, 0, tids + 2);
-	printf("heart temp submit=%d\n", tids[2]);
-	CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)th_control_first_login_to_master, this, 0, tids + 3);
-	printf("first login to master=%d\n", tids[3]);
+	printf("温度上报线程初始化成功！  heart temp submit=%d\n", tids[2]);
+	CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)th_userInputListener, this, 0, tids + 3);
+	printf("用户监听线程初始化成功！  heart temp submit=%d\n", tids[3]);
+	//CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)th_control_first_login_to_master, this, 0, tids + 3);
+	//printf("first login to master=%d\n", tids[3]);
 repeat:
-
+	isFirstTempSubmitSent = false;
 	//string masterip, agentip;
 	//cin << masterip;
 	//cin << agentip;
@@ -380,20 +445,29 @@ repeat:
 	//int iRlt2 = masterClient.Connect("8888", masterip.c_str());//主机
 	//int iRlt1 = agentClient.Connect("9999", agentip.c_str());//agent
 
-	int iRlt2 = masterClient.Connect("8888","127.0.0.1");//主机
+	int iRlt2 = masterClient.Connect(serverPort, serverIP);//主机
+	 
 	if (iRlt2 == 0)//与主机成功建立连接
 	{
 		cout << "HLHLHLHLHLHLHLHLHLHLHLHLHLHLHLHLHLHLHLHLHLH" << endl;
 		CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)th_control_masterServer, this, 0, tids);
+		cout << "与主机成功建立连接！" << endl;
 		printf("master server=%d\n", tids[0]);
 		
 	repeat1:
-		int iRlt1 = agentClient.Connect("9999", "127.0.0.1");//agent
+		if (masterClient.m_sock == 0) {
+			closesocket(agentClient.m_sock);
+			goto repeat;
+		}
+
+		int iRlt1 = agentClient.Connect(ClientPort, ClientIP);//agent
 
 		if (iRlt1 == 0)//与从机成功建立连接
 		{
 			cout << "MKYMKYMKYMKYMKYMKYMKYMKYMKYMKYMKYMKYMKYMKY" << endl;
+			Sleep(100);
 			CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)th_control_agentServer, this, 0, tids + 1);
+			cout << "与从机成功建立连接！" << endl;
 			printf("agent server=%d\n", tids[1]);
 			Sleep(500);
 			control_agentClient("Reg", 1);

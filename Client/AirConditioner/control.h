@@ -6,7 +6,6 @@
 #include "slave.h"
 #include "sensor.h"
 #include "ClientNet.h"
-//#include "ServerNet.h"
 #include "XMLInfo.h" 
 
 using namespace std;
@@ -16,8 +15,6 @@ class Control
 	private:
 		CClientNet agentClient;
 		CClientNet masterClient;
-		//CServerNet agentServer;
-		//CServerNet masterServer;
 		Slave slave;
 		XMLInfo xmlinfo;
 		DWORD tids[NUM_THREADS];
@@ -27,15 +24,19 @@ class Control
 		int flag;
 		HANDLE mutex;
 		int isAgentClosed;
+		bool isFirstTempSubmitSent;
 		
 	public:
 		Control()
 		{
-			isAgentClosed = -1;
-			//Slave slave(1);	
+			isAgentClosed = -1;	
+			isFirstTempSubmitSent = false;
 		}
 		CClientNet* getAgentClient();
 		CClientNet* getMasterClient();
+		bool getFirstTempSubmitSent();
+		static void* th_userInputListener(void*);
+		void* userInputListener();
 		static void* th_control_heart_temp_submit(void*);
 		void* control_heart_temp_submit();
 		static void* th_control_first_login_to_master(void*);
@@ -52,7 +53,7 @@ class Control
 		void port_of_agentServer(TiXmlElement*);
 		void control_masterClient(string,int);
 		void control_agentClient(string,int);
-		int control_init();
+		int control_init(const char* serverIP, const char* serverPort, const char* ClientIP, const char* ClientPort, int roomNum);
 		
 		/*static void* say_hello(void* args)
         {

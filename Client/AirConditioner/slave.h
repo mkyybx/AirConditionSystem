@@ -33,9 +33,11 @@ class Slave
 		int slave_fare;
 		int slave_energy;
 		int slave_wind_permitted;
+		bool isCurrentTempChanged;
 						
 	public:
 		Slave();
+		void setSlaveNum(int roomNum);
 		void clearQueue();
 		void loginReqHandler(Userinfo userInfo);
 		void loginACKHandler(Userinfo userInfo, bool isSucceed);//UserinfoµÄID×Ö¶ÎËæÒâ
@@ -57,13 +59,15 @@ class Slave
 		int get_slave_fare(){return slave_fare;}
 		int get_slave_energy(){return slave_energy;}
 		int get_slave_wind_permitted(){ return slave_wind_permitted; }
+		int get_isCurrentTempChanged(){ return isCurrentTempChanged; }
 		
 		void update_slave_num(int n){slave_num = n;}
 		void update_slave_state(int s){slave_state = s;}
 		void update_slave_current_temp(int ct){slave_current_temp += ct;}
+		void setCurrentTemp(int temp);
 		int update_slave_target_temp(int);
-		void update_slave_current_wind_speed(int cs){slave_current_wind_speed = cs;}
-		int update_slave_target_wind_speed(int);
+		int update_slave_current_wind_speed(int);
+		void update_slave_target_wind_speed(int ts){ slave_current_wind_speed = ts; }
 		int update_slave_mode(int);
 		void update_slave_user(string u){slave_user = u;}
 		void update_slave_password(string p){slave_password = p;}
@@ -72,7 +76,8 @@ class Slave
 		void update_slave_inspection_frequency(int f){slave_inspection_frequency = f;}
 		void update_slave_fare(int f){slave_fare = f;}
 		void update_slave_energy(int e){slave_energy = e;}	
-		void update_slave_wind_permitted(int p){ slave_wind_permitted = p; }
+		void update_slave_wind_permitted(int);
+		void update_isCurrentTempChanged(){ isCurrentTempChanged = false; }
 		int update_slave_userinfo_queue(string,string,string);
 		
 		void delete_queue();

@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <ctime>
 #include <windows.h>
+#include <sstream>
 
 #include <winsock2.h>
 #include <ws2tcpip.h>
