@@ -188,22 +188,25 @@ class MyDate{
     public int month;
     public int week;
     public int day;
+    public String time;
 
     @Override
     public String toString() {
-        return month + "月-" + week + "周-" + day + "日";
+        return month + "月-" + day + "日-" + time;
     }
 
     public MyDate(LocalDateTime now){
         month = now.getMonthValue();
         week = now.get(IsoFields.WEEK_OF_WEEK_BASED_YEAR);
         day = now.getDayOfMonth();
+        time = now.getHour() + ":" + now.getMinute() + ":" + now.getSecond();
     }
 
-    public MyDate(int month, int week, int day){
+    public MyDate(int month, int week, int day, String time){
         this.month = month;
         this.week = week;
         this.day = day;
+        this.time = time;
     }
 }
 
@@ -215,7 +218,7 @@ class Log{                              // struct for store log info
     public int netDuration = 0;
     public double energy = 0;
     public double fee = 0;
-    public int level = 1;
+    public int level = 0;
     public int startTemp = 26;
     public int endTemp = 26;
     public boolean checkOut = false;
@@ -235,23 +238,25 @@ class LogHandler extends DatabaseHandler{
     }
 
     public synchronized void insert(String tableName, ArrayList<Log> logs) throws SQLException {
-        stmt = conn.prepareStatement("INSERT INTO " + tableName + " VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        stmt = conn.prepareStatement("INSERT INTO " + tableName + " VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
         for(Log log: logs){
             stmt.setInt(1, log.Client_No);
             stmt.setString(2, log.Name);
             stmt.setInt(3, log.startDate.month);
             stmt.setInt(4, log.startDate.week);
             stmt.setInt(5, log.startDate.day);
-            stmt.setInt(6, log.endDate.month);
-            stmt.setInt(7, log.endDate.week);
-            stmt.setInt(8, log.endDate.day);
-            stmt.setInt(9, log.netDuration);
-            stmt.setDouble(10, log.energy);
-            stmt.setDouble(11, log.fee);
-            stmt.setInt(12, log.level);
-            stmt.setInt(13, log.startTemp);
-            stmt.setInt(14, log.endTemp);
-            stmt.setBoolean(15, log.checkOut);
+            stmt.setString(6, log.startDate.time);
+            stmt.setInt(7, log.endDate.month);
+            stmt.setInt(8, log.endDate.week);
+            stmt.setInt(9, log.endDate.day);
+            stmt.setString(10, log.endDate.time);
+            stmt.setInt(11, log.netDuration);
+            stmt.setDouble(12, log.energy);
+            stmt.setDouble(13, log.fee);
+            stmt.setInt(14, log.level);
+            stmt.setInt(15, log.startTemp);
+            stmt.setInt(16, log.endTemp);
+            stmt.setBoolean(17, log.checkOut);
             stmt.addBatch();
         }
         conn.setAutoCommit(false);
@@ -282,8 +287,9 @@ class LogHandler extends DatabaseHandler{
             log.Client_No = res.getInt("Client_No");
             log.Name = res.getString("Name");
             log.startDate = new MyDate(res.getInt("startMonth"), res.getInt("startWeek"),
-                                        res.getInt("startDay"));
-            log.endDate = new MyDate(res.getInt("endMonth"), res.getInt("endWeek"), res.getInt("endDay"));
+                                        res.getInt("startDay"), res.getString("startTime"));
+            log.endDate = new MyDate(res.getInt("endMonth"), res.getInt("endWeek"),
+                                        res.getInt("endDay"), res.getString("endTime"));
             log.netDuration = res.getInt("netDuration");
             log.energy = res.getDouble("energy");
             log.fee = res.getDouble("fee");

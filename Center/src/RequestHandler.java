@@ -6,9 +6,7 @@
  * When the connection is dropped, RequestHandler inform Dispatcher for rescheduling.
  */
 
-import com.sun.xml.internal.ws.policy.privateutil.PolicyUtils;
 import org.dom4j.DocumentException;
-
 import java.io.*;
 import java.net.InetAddress;
 import java.net.Socket;
@@ -63,11 +61,11 @@ public class RequestHandler implements Runnable {
             }
             catch (IOException e){              // client may drop connection
                 e.printStackTrace();
-                break;
+                return;
             }
             if(req == null || "".equals(req)){  // client may drop connection
                 System.out.println("no request received");
-                break;
+                return;
             }
 
             if(Thread.currentThread().isInterrupted()){
@@ -122,7 +120,7 @@ public class RequestHandler implements Runnable {
                         succeed = (parser.getName().equals(info.Name) && parser.getPassword().equals(info.Password));
                     }
                     catch (Exception e){
-                        e.printStackTrace();
+                        succeed = false;
                     }
 
                     // check if the login ip is the same
@@ -151,12 +149,12 @@ public class RequestHandler implements Runnable {
                         log.Name = parser.getName();
                         log.startDate = new MyDate(LocalDateTime.now());
                         positive = false;
-                        Server.logTable.put(client_no, log);
-                        Server.clients.put(client_no, client);
                         if(!Server.energyTable.containsKey(client_no))
                             Server.energyTable.put(client_no, 0.);
                         if(!Server.tempTable.containsKey(client_no))
                             Server.tempTable.put(client_no, temp);
+                        Server.logTable.put(client_no, log);
+                        Server.clients.put(client_no, client);
                     }
                     break;
             }
@@ -180,23 +178,24 @@ public class RequestHandler implements Runnable {
         // clean up: remove client from queue
         Server.removeClient(client_no);
         // dump the logs to database
-        if(Server.logTable.containsKey(client_no) && (Config.getServerState() == ServerState.Off || !client.isClosed())){
-            newLog(Server.logTable.get(client_no), 0);
-            Server.logTable.remove(client_no);
-        }
+        commitLog(client_no);
+        Server.logTable.remove(client_no);
+        //if(Server.logTable.containsKey(client_no) && (Config.getServerState() == ServerState.Off || !client.isClosed())){
+        //}
         Server.tempTable.remove(client_no);
         // don't remove from energy and IP table, in case of bad network connection; close connections
     }
 
     private void handleAC(int level, boolean positive) {
+        System.out.println("In AC");
         if(level <= 0 || level > 3)
             return;
-        Log log = Server.logTable.get(client_no);
+
         if(positive && !this.positive){                 // request for start
-            Server.produceLock.lock();                  // wait for dispatcher
+            newLog(client_no, level);
             try {
-                if (level != log.level)                 // if level changed, compute fee and create a new log
-                    newLog(log, level);
+                Server.produceLock.lock();                  // wait for dispatcher
+                System.out.println("client start lock");
                 if(Config.getServerState() == ServerState.Idle){        // turn server on
                     Config.setServerState(ServerState.On);
                 }
@@ -205,14 +204,17 @@ public class RequestHandler implements Runnable {
                 Server.wakeCond.signal();
             }
             finally {
+                System.out.println("client start unlock");
                 Server.produceLock.unlock();                  // inform dispatcher
             }
         }
         else if(!positive && this.positive){    // request for stop
-            Server.produceLock.lock();                 // wait for dispatcher
             try {
+                Server.produceLock.lock();                 // wait for dispatcher
+                System.out.println("client stop lock");
                 int ind = Server.queue.indexOf(client_no);
                 Server.queue.remove(ind);
+                System.out.println("Queue size" + Server.queue.size());
                 WakeUpTable.setQueueChanged(true);
                 if(Server.queue.size() == 0 && Config.getServerState() == ServerState.On){
                     Config.setServerState(ServerState.Idle);
@@ -220,12 +222,16 @@ public class RequestHandler implements Runnable {
                 Server.wakeCond.signal();
             }
             finally {
+                System.out.println("client stop unlock");
                 Server.produceLock.unlock();                  // inform dispatcher
             }
+            commitLog(client_no);
         }
-        else if(positive && log.level != level){     // client's on and level has changed
-            newLog(log, level);                      // compute fee and create a new log
+        else if(positive && Server.logTable.get(client_no).level != level){     // client's on and level has changed
+            commitLog(client_no);
+            newLog(client_no, level);                      // compute fee and create a new log
         }
+        this.positive = positive;
     }
 
     private void handleSubmit(int client_no, int temp) {
@@ -233,35 +239,40 @@ public class RequestHandler implements Runnable {
         Server.tempTable.replace(client_no, temp);
     }
 
-    public static void newLog(Log log, int level) {        // store old log into database and start a new log
+    public static void commitLog(int client_no){
+        Log log = Server.logTable.get(client_no);
         log.updateEnergyAndFare();
         log.endDate = new MyDate(LocalDateTime.now());
-        log.endTemp = Server.tempTable.get(log.Client_No);
-        double newEnergy = Server.energyTable.get(log.Client_No) + log.energy;
+        log.endTemp = Server.tempTable.get(client_no);
+        double newEnergy = Server.energyTable.get(client_no) + log.energy;
+        Server.energyTable.replace(log.Client_No, newEnergy);
+        log.energy = 0;
 
-        // dump the log to database
-        ArrayList<Log> logs = new ArrayList<>(Arrays.asList(log));
         try {
-            Server.logHandler.insert(Config.logTable, logs);
+            Server.logHandler.insert(Config.logTable, new ArrayList<>(Arrays.asList(log)));
         }
         catch (SQLException e){
             e.printStackTrace();
             System.out.println("Error when insert into logTable.");
         }
+    }
 
-        // start logging a new log
+    public static void newLog(int client_no, int level) {        // store old log into database and start a new log
+        Log log = Server.logTable.get(client_no);
         log.startDate = new MyDate(LocalDateTime.now());
-        log.startTemp = Server.tempTable.get(log.Client_No);
+        log.startTemp = Server.tempTable.get(client_no);
         log.level = level;
         log.netDuration = 0;
+        log.energy = 0;
+        //double newEnergy = Server.energyTable.get(client_no) + log.energy;
+        //Server.energyTable.replace(log.Client_No, newEnergy);
         log.updateEnergyAndFare();
         log.checkOut = false;
-        Server.energyTable.replace(log.Client_No, newEnergy);
         Server.logTable.replace(log.Client_No, log);
     }
 
     public static boolean sendMsg(DataOutputStream output, String Msg){
-        System.out.println(Msg);
+        System.out.println("Len + " + Msg.length() + Msg);
         try {
             output.writeInt(Msg.length());
             output.writeBytes(Msg);
@@ -277,7 +288,7 @@ public class RequestHandler implements Runnable {
         byte[] temp = new byte[length];
         input.readFully(temp);
         String Msg = new String(temp);
-        System.out.println(Msg);
+        System.out.println("Read len + " + length + " " +  Msg);
         return Msg;
     }
 }

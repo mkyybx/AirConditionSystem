@@ -51,6 +51,7 @@
             <properties>
               <model>
                 <item value="房间编号"/>
+                <item value="所有房间"/>
               </model>
             </properties>
           </component>

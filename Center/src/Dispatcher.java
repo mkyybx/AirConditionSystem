@@ -24,10 +24,12 @@ public class Dispatcher implements Runnable{
             if(Thread.currentThread().isInterrupted())
                 return;
 
-            Server.produceLock.lock();
             try {
+                Server.produceLock.lock();
+                System.out.println("dispatcher lock...");
                 // wait for timer's or client's signal
                 Server.wakeCond.await();
+                System.out.println("dispatcher wake...");
                 if (WakeUpTable.isModeChanged()){
                     System.out.println("Mode changed");
                     String Msg = XMLPacker.packModeInfo();
@@ -45,29 +47,38 @@ public class Dispatcher implements Runnable{
                 if(WakeUpTable.isQueueChanged() || WakeUpTable.isSchedulingTimeout()){
                     System.out.println("Rescheduling");
                     schedule();
+                    System.out.println("Back to run...");
                     if(WakeUpTable.isQueueChanged())
                         WakeUpTable.setQueueChanged(false);
                     if (WakeUpTable.isSchedulingTimeout())
                         WakeUpTable.setSchedulingTimeout(false);
                     if (!(previousQueueLength > 0 && Server.queue.size() > 0 || previousQueueLength == Server.queue.size()))
                         mainForm.setState(Config.getServerState());
+                    System.out.println("end of queue changed...");
                 }
                 if (WakeUpTable.isFareTimeout()){
                     System.out.println("Sending fare");
                     broadcastFare();
                     if(oldList != null){
                         for(Integer i: oldList){        // update duration for selected clients
+                            if(!Server.queue.contains(i)){
+                                System.out.println("not in the queue");
+                                continue;
+                            }
+                            System.out.println(i + " in the queue");
                             Server.logTable.get(i).netDuration++;
                             Server.logTable.get(i).updateEnergyAndFare();
                         }
                     }
                     WakeUpTable.setFareTimeout(false);
                 }
+                System.out.println("end of try...");
             }
             catch (InterruptedException e){
                 System.out.println("Dispatcher is shut down");
             }
             finally {
+                System.out.println("dispatcher unlock...");
                 Server.produceLock.unlock();
             }
             previousQueueLength = Server.queue.size();
@@ -75,8 +86,15 @@ public class Dispatcher implements Runnable{
     }
 
     private void broadcastFare() {
+        double energy;
         for (Integer i: Server.clients.keySet()){
-            double energy = Server.energyTable.get(i) + Server.logTable.get(i).energy;
+            try {
+                energy = Server.energyTable.get(i) + Server.logTable.get(i).energy;
+            }
+            catch (NullPointerException e){
+                e.printStackTrace();
+                energy = 0;
+            }
             double fare = energy * 5;
             String Msg = XMLPacker.packFareInfo(fare, energy);
             sendMsg(i, Msg);
@@ -86,8 +104,17 @@ public class Dispatcher implements Runnable{
     private void schedule() {
         if (Server.queue.size() == 0) {                 // No one's waiting
             Config.setServerState(ServerState.Idle);    // server go idle
+            System.out.println("queue size is 0");
+            for (Integer i: Server.clients.keySet()){
+                if (Server.logTable.get(i).level == 0)
+                    continue;
+                String Msg = XMLPacker.packQueueInfo(false, Server.logTable.get(i).level);
+                sendMsg(i, Msg);
+            }
+            oldList = null;
             return;
         }
+        System.out.println("queue size is > 0");
         Config.setServerState(ServerState.On);          // otherwise it's on
 
         ArrayList<Integer> selectedList = new ArrayList<>();
@@ -103,20 +130,18 @@ public class Dispatcher implements Runnable{
                 selectedList.add(fullList.get((first + i) % fullList.size()));
         }
 
+        String Msg;
         // keep an old list and current list
-        String Msg = XMLPacker.packQueueInfo(true, 1);
-
-        for (Integer i: selectedList)       // inform slaves to start blowing
+        for (Integer i: selectedList) {
+            Msg = XMLPacker.packQueueInfo(true, Server.logTable.get(i).level);// inform slaves to start blowing
             sendMsg(i, Msg);
+        }
 
-        if (oldList != null){               // inform them to stop
-            Msg = XMLPacker.packQueueInfo(false, 1);
-
-            for (Integer i: oldList){
-                if (selectedList.contains(i))
-                    continue;
-                sendMsg(i, Msg);
-            }
+        for (Integer i: Server.clients.keySet()){
+            if (selectedList.contains(i) || Server.logTable.get(i).level == 0)
+                continue;
+            Msg = XMLPacker.packQueueInfo(false, Server.logTable.get(i).level);
+            sendMsg(i, Msg);
         }
 
         oldList = selectedList;

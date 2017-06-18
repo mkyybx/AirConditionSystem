@@ -9,15 +9,16 @@ public class MyTimer implements Runnable{
         boolean flag = true;
         while (flag){
             try {
-                Thread.sleep(10*1000);
+                Thread.sleep(5*1000);
             } catch (InterruptedException e) {
                 System.out.println("Timer is shut down.");
                 return;
             }
 
-            // System.out.println("Timer expired...");
-            Server.produceLock.lock();             // wait for dispatcher to finish current job
+            System.out.println("Timer expired...");
             try {                           // ticking every one minute
+                Server.produceLock.lock();             // wait for dispatcher to finish current job
+                System.out.println("timer lock");
                 if (Config.getServerState() != ServerState.Off){
                     count++;
                     WakeUpTable.setFareTimeout(true);
@@ -29,9 +30,10 @@ public class MyTimer implements Runnable{
                 else{
                     flag = false;
                 }
+                Server.wakeCond.signal();
             }
             finally{
-                Server.wakeCond.signal();
+                System.out.println("timer unlock");
                 Server.produceLock.unlock();
             }
         }

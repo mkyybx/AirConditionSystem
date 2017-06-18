@@ -38,12 +38,12 @@ public class XMLParser {
                 // sec = Integer.parseInt(childElement.elementText("Sec"));
                 try {
                     client_no = Integer.parseInt(element.elementText("Client_No"));
-                    temp = Integer.parseInt(element.elementText("Temp"));
+                    temp = (int) Double.parseDouble(element.elementText("Temp"));
                 }
                 catch (NumberFormatException e){
                     return false;
                 }
-                System.out.println("Client_no " + client_no + ", temp " + temp);
+                // System.out.println("Client_no " + client_no + ", temp " + temp);
                 break;
 
             case RequestHandler.LOGIN:
@@ -95,10 +95,10 @@ class XMLPacker {
     public static String packLoginACK(String name, String password, boolean succeed){
         Document doc = DocumentHelper.createDocument();
         Element root = doc.addElement(RequestHandler.ACK);
+        root.addElement("Succeed").setText(succeed ? "1" : "0");
         root.addElement("Name").setText(name);
         root.addElement("Password").setText(password);
         root.addElement(RequestHandler.MODE).setText(Integer.toString(Config.getMode()));
-        root.addElement("Succeed").setText(succeed ? "1" : "0");
         return doc.asXML().split("\n")[1];
     }
 
@@ -128,9 +128,9 @@ class XMLPacker {
     public static String packQueueInfo(boolean isBlow, int level){
         Document doc = DocumentHelper.createDocument();
         Element root = doc.addElement(RequestHandler.WIND);
+        root.addElement("Level").setText(Integer.toString(level));
         root.addElement("Start_Blowing").setText(Integer.toString(isBlow ? 1 : 0));
         // Level should be ignored in this case
-        root.addElement("Level").setText(Integer.toString(level));
         return doc.asXML().split("\n")[1];
     }
 

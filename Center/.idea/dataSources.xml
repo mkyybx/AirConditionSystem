@@ -5,7 +5,7 @@
       <driver-ref>sqlite.xerial</driver-ref>
       <synchronize>true</synchronize>
       <jdbc-driver>org.sqlite.JDBC</jdbc-driver>
-      <jdbc-url>jdbc:sqlite:C:\Users\Layne\working\Air\roomInfo.db</jdbc-url>
+      <jdbc-url>jdbc:sqlite:$PROJECT_DIR$/roomInfo.db</jdbc-url>
       <driver-properties>
         <property name="enable_load_extension" value="true" />
       </driver-properties>
@@ -14,7 +14,7 @@
       <driver-ref>sqlite.xerial</driver-ref>
       <synchronize>true</synchronize>
       <jdbc-driver>org.sqlite.JDBC</jdbc-driver>
-      <jdbc-url>jdbc:sqlite:C:\Users\Layne\working\Air\log.db</jdbc-url>
+      <jdbc-url>jdbc:sqlite:$PROJECT_DIR$/log.db</jdbc-url>
       <driver-properties>
         <property name="enable_load_extension" value="true" />
       </driver-properties>

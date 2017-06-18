@@ -34,12 +34,6 @@ public class Server implements Runnable
         this.port = port;
         this.mainForm = mainForm;
         childThreads = new ArrayList<>();
-        clients = new ConcurrentHashMap<>();
-        IPTable = new ConcurrentHashMap<>();
-        tempTable = new ConcurrentHashMap<>();
-        logTable = new ConcurrentHashMap<>();
-        queue = new CopyOnWriteArrayList<>();
-        energyTable = new ConcurrentHashMap<>();
         produceLock = new ReentrantLock();
         wakeCond = produceLock.newCondition();
         roomInfoHandler = new RoomInfoHandler(Config.roomInfoDir);

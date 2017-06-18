@@ -1,3 +1,5 @@
+import jdk.nashorn.internal.scripts.JO;
+
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.event.ActionEvent;
@@ -10,6 +12,10 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+
+import static sun.management.snmp.jvminstr.JvmThreadInstanceEntryImpl.ThreadStateMap.Byte0.runnable;
 
 /**
  * Created by Layne on 2017/5/31.
@@ -53,7 +59,7 @@ public class MainForm implements ActionListener, ItemListener {
 
     private HashMap<Integer, ArrayList<Log>> reports;
     private Thread serverThread;
-    private int port = 9999;
+    private int port = 8888;
 
     public MainForm() {
         btnState.addActionListener(this);
@@ -76,7 +82,7 @@ public class MainForm implements ActionListener, ItemListener {
 
     private void createUIComponents() {
         DefaultTableModel model = new DefaultTableModel() {     // define customized table
-            String[] columnName = {"起始时间", "结束时间", "起始温度", "结束温度", "风速等级"};
+            String[] columnName = {"房间号", "起始时间", "结束时间", "起始温度", "结束温度", "风速等级", "此次费用"};
 
             @Override
             public int getColumnCount() {
@@ -95,7 +101,7 @@ public class MainForm implements ActionListener, ItemListener {
     public static void main(String[] args) throws ClassNotFoundException, UnsupportedLookAndFeelException, InstantiationException, IllegalAccessException {
         MainForm mainForm = new MainForm();
         UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-        JFrame frame = new JFrame("MainForm");
+        JFrame frame = new JFrame("中央空调");
         frame.setContentPane(mainForm.mainPanel);
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.pack();
@@ -107,13 +113,27 @@ public class MainForm implements ActionListener, ItemListener {
             return;
         String str = (state == ServerState.Idle ? "待机" : "工作");
         tfCurrentState.setText(str);
-        JOptionPane.showMessageDialog(null, "中央空调模式变为"+str);
+        showMsg("中央空调模式变为"+str);
+    }
+
+    private void showMsg(String Msg){
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                //JOptionPane.showMessageDialog(null, Msg);
+            }
+        }).start();
     }
 
     private void serverShutdown() throws SQLException {
         tfCurrentState.setText("关机");
         Config.setServerState(ServerState.Off);
-        for (Integer i : Server.clients.keySet()){
+        ArrayList<Object> roomList = Server.logHandler.selectColumnDistinct(Config.logTable, "Client_No",
+                DatabaseHandler.map("checkOut", false));
+
+        for (Object room : roomList){
+            int i = (int) room;
+            System.out.println("正在结算" + i + "号房间");
             roomCheckOut(i);
         }
         serverThread.interrupt();
@@ -123,21 +143,26 @@ public class MainForm implements ActionListener, ItemListener {
     private void serverStart() {
         tfCurrentState.setText("待机");
         Config.setServerState(ServerState.On);
+        Server.clients = new ConcurrentHashMap<>();
+        Server.IPTable = new ConcurrentHashMap<>();
+        Server.tempTable = new ConcurrentHashMap<>();
+        Server.logTable = new ConcurrentHashMap<>();
+        Server.queue = new CopyOnWriteArrayList<>();
+        Server.energyTable = new ConcurrentHashMap<>();
         serverThread = new Thread(new Server(port, this));
         serverThread.start();
     }
 
     private void clientCheckout() throws SQLException{
         if(cbCheckout.getSelectedIndex() == 0){
-            JOptionPane.showMessageDialog(null, "请选择要结算的房间");
+            showMsg("请选择要结算的房间");
             return;
         }
         int client_no = (int) cbCheckout.getSelectedItem();
         double energy = roomCheckOut(client_no);
         double fee = energy * 5;
 
-        JOptionPane.showMessageDialog(null, "客户 "+ client_no + "结算成功，总共消耗的能量是 "
-                + energy + ", 产生的费用为 " + fee);
+        showMsg("客户 "+ client_no + "结算成功，总共消耗的能量是 " + energy + ", 产生的费用为 " + fee);
     }
 
     private double roomCheckOut(int client_no) throws SQLException{
@@ -153,7 +178,7 @@ public class MainForm implements ActionListener, ItemListener {
             }
             Server.removeClient(client_no);
             if(Server.logTable.containsKey(client_no)){
-                RequestHandler.newLog(Server.logTable.get(client_no), 0);
+                RequestHandler.commitLog(client_no);
                 Server.logTable.remove(client_no);
             }
             energy = Server.energyTable.get(client_no);
@@ -187,7 +212,7 @@ public class MainForm implements ActionListener, ItemListener {
             client_no = Integer.parseInt(tfAssignRoom.getText());
         }
         catch (NumberFormatException e){
-            JOptionPane.showMessageDialog(null, "房间号不应为空或非正整数的字符串");
+            showMsg("房间号不应为空或非正整数的字符串");
             return;
         }
 
@@ -204,19 +229,20 @@ public class MainForm implements ActionListener, ItemListener {
             tfAssignName.setText("");
             tfAssignRoom.setText("");
             tfAssignPass.setText("");
-            JOptionPane.showMessageDialog(null, "房间" + client_no + "登记成功");
+            showMsg("房间" + client_no + "登记成功");
         }
         else{                                   // the room is occupied, inform stuff
-            JOptionPane.showMessageDialog(null, "该房间已被占用");
+            showMsg("该房间已被占用");
         }
     }
 
     private void getReport() throws SQLException {
         cbShowReport.removeAllItems();
         cbShowReport.addItem("房间编号");
+        cbShowReport.addItem("所有房间");
         int reportType = cbReport.getSelectedIndex();
         if(reportType == 0){
-            JOptionPane.showMessageDialog(null, "请选择要查看的报表类型");
+            showMsg("请选择要查看的报表类型");
             return;
         }
         ArrayList<Object> roomList = Server.logHandler.selectColumnDistinct(Config.logTable, "Client_No", new HashMap<>());
@@ -242,9 +268,9 @@ public class MainForm implements ActionListener, ItemListener {
         }
 
         if (reports.size() > 0)
-            JOptionPane.showMessageDialog(null, "报表已在右边窗口生成，选择具体的房间查看详细信息");
+            showMsg("报表已在右边窗口生成，选择具体的房间查看详细信息");
         else
-            JOptionPane.showMessageDialog(null, "没有对应类型的报表");
+            showMsg("没有对应类型的报表");
     }
 
     @Override
@@ -256,7 +282,7 @@ public class MainForm implements ActionListener, ItemListener {
                     serverStart();
                 else
                     serverShutdown();
-                JOptionPane.showMessageDialog(null, "主机状态变为"+tfCurrentState.getText());
+                showMsg("主机状态变为" + tfCurrentState.getText());
             }
             else if(source == btnMode){
                 setMode();
@@ -283,18 +309,28 @@ public class MainForm implements ActionListener, ItemListener {
     public void itemStateChanged(ItemEvent e) {
         // only cbShowReport have a listener
         if(e.getStateChange() == ItemEvent.SELECTED){
+            if (reports == null)
+                return;
+
+            ArrayList<Log> logs;
             try {
                 int client_no = (int) e.getItem();
-                ArrayList<Log> logs = reports.get(client_no);
-                double fee = updateTable(logs);
-                tfSwitch.setText(Integer.toString(logs.size()));
-                tfFee.setText(Double.toString(fee));
+                logs = reports.get(client_no);
             }
             catch (ClassCastException exp){
-                updateTable(new ArrayList<>());
-                tfSwitch.setText("");
-                tfFee.setText("");
+                if (e.getItem().equals("房间编号")){
+                    updateTable(new ArrayList<>());
+                    tfSwitch.setText("");
+                    tfFee.setText("");
+                    return;
+                }
+                logs = new ArrayList<>();
+                for(HashMap.Entry<Integer, ArrayList<Log>> arr : reports.entrySet())
+                    logs.addAll(arr.getValue());
             }
+            double fee = updateTable(logs);
+            tfSwitch.setText(Integer.toString(logs.size()));
+            tfFee.setText(Double.toString(fee));
         }
     }
 
@@ -304,41 +340,46 @@ public class MainForm implements ActionListener, ItemListener {
             freq = Integer.parseInt(tfFreq.getText());
         }
         catch (NumberFormatException e){
-            JOptionPane.showMessageDialog(null, "频率不应为空或非正整数的字符串");
+            showMsg("频率不应为空或非正整数的字符串");
+            System.out.println("Back..");
             return;
         }
 
         if(freq != Config.getFrequency()){  // set new frequency
-            Server.produceLock.lock();
             try {
+                Server.produceLock.lock();
+                System.out.println("freq lock");
                 Config.setFrequency(freq);
                 WakeUpTable.setFrequencyChanged(true);
+                Server.wakeCond.signal();
             }
             finally {
-                Server.wakeCond.signal();
                 Server.produceLock.unlock();
+                System.out.println("freq unlock");
             }
-            JOptionPane.showMessageDialog(null, "频率变为" + freq);
+            showMsg("频率变为" + freq);
         }
         else
-            JOptionPane.showMessageDialog(null, "频率已经为" + freq);
+            showMsg("频率已经为" + freq);
         tfFreq.setText("");
     }
 
     private void setMode() {
         int mode = 1 - Config.getMode();
-        Server.produceLock.lock();
         try {
+            Server.produceLock.lock();
+            System.out.println("mode lock");
             Config.setMode(mode);
             WakeUpTable.setModeChanged(true);
+            Server.wakeCond.signal();
         }
         finally {
-            Server.wakeCond.signal();
+            System.out.println("mode unlock");
             Server.produceLock.unlock();
         }
 
         tfCurrentMode.setText(mode == 0 ? "制冷" : "制暖");
-        JOptionPane.showMessageDialog(null, "模式设置为" + (mode == 0 ? "制冷" : "制暖"));
+        showMsg("模式设置为" + (mode == 0 ? "制冷" : "制暖"));
     }
 
     private double updateTable(ArrayList<Log> logs){
@@ -348,8 +389,8 @@ public class MainForm implements ActionListener, ItemListener {
         double fee = 0;
 
         for(Log log : logs){
-            String[] arr = new String[]{log.startDate.toString(), log.endDate.toString(), Integer.toString(log.startTemp),
-                            Integer.toString(log.endTemp), Integer.toString(log.level)};
+            String[] arr = new String[]{Integer.toString(log.Client_No), log.startDate.toString(), log.endDate.toString(), Integer.toString(log.startTemp),
+                            Integer.toString(log.endTemp), Integer.toString(log.level), Double.toString(log.fee)};
             fee += log.fee;
             // insert into table
             tableModel.addRow(arr);
