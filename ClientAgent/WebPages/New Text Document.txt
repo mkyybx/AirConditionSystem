@@ -1,9 +1,0 @@
-开发说明：
-网页页面Java Scrip部分：
-开发语言：Java Scrip
-开发环境：
-Sublime Text 3  Dev Channel，Bulid 3132
-Google Chrome V59.0.3071.86 （64位）
-Sever: WebSocket
-
-

@@ -1,0 +1,54 @@
+1.从控机Agent系统：
+
+开发语言：
+Java 8
+
+开发环境：
+JRE:build 1.8.0_77-b03
+JVM:HotSpot(TM) 64-Bit Server VM (build 25.77-b03, mixed mode)
+Servlet Container:Apache Tomcat/8.5.15
+XML组件:dom4j-2.0.0
+IDE:IntelliJ IDEA 2017.1.2 Build #IU-171.4249.39
+OS:Windows 10 build 14393.1358
+
+
+2.主机系统：
+
+开发语言：
+JAVA 8
+
+开发环境：
+JRE:build 1.8.0_77-b03
+JVM:HotSpot(TM) 64-Bit Server VM (build 25.77-b03, mixed mode)
+XML组件:dom4j-2.0.0
+IDE:IntelliJ IDEA 2017.1.2
+OS:Windows 10
+
+数据库：
+SQLite3
+
+
+3.从机系统：
+
+开发语言：
+C++
+
+
+开发环境：
+
+Microsoft Visual C++ 2013
+
+
+Microsoft Windows 7 6.1.7601 Service Pack 1
+
+
+4.从控机前端部分：
+
+开发语言：
+JavaScript，HTML5，CSS
+
+开发环境：
+Sublime Text 3  Dev Channel，Bulid 3132
+Google Chrome V59.0.3071.86 （64位）
+Dreamweaver 2017
+jquery 1.8.0
