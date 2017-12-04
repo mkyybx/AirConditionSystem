@@ -7,6 +7,6 @@ A hotel is pursuing the concept of energy saving and environmental protection, t
 
 ## The system consists of three sub-systems:
 
-* Center: Simulating the central air conditioning machine and billing.
-* Client: Simulating the distributed vent in the guest room.
-* ClientAgent: A web server allowing occupants to access to control their own distributed vents at the guest room.
+* **Center**: Simulating the central air conditioning machine and billing.
+* **Client**: Simulating the distributed vent in the guest room.
+* **ClientAgent**: A web server allowing occupants to access to control their own distributed vents at the guest room.
